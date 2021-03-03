@@ -11,7 +11,7 @@ import { getUserByUsername } from './userDatabase'
 const LoginInput = t.type({
   username: NonEmptyString,
   password: NonEmptyString
-})
+}, 'LoginInput')
 type LoginInput = t.TypeOf<typeof LoginInput>
 
 function login(input: LoginInput): TaskEither<RouteError, RouteResponse<SessionData>> {

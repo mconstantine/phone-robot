@@ -12,7 +12,7 @@ export const SessionData = t.type({
   accessToken: NonEmptyString,
   refreshToken: NonEmptyString,
   expiration: DateFromISOString
-})
+}, 'SessionData')
 export type SessionData = t.TypeOf<typeof SessionData>
 
 export function createSessionData(

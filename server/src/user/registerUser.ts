@@ -21,7 +21,7 @@ const RegisterInput = t.type({
   username: NonEmptyString,
   password: NonEmptyString,
   passwordConfirmation: NonEmptyString
-})
+}, 'RegisterInput')
 type RegisterInput = t.TypeOf<typeof RegisterInput>
 
 function register(

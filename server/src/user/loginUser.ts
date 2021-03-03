@@ -5,8 +5,8 @@ import * as t from 'io-ts'
 import { NonEmptyString } from 'io-ts-types'
 import { compare } from '../lib/bcryptjs'
 import { makeRoute, okRouteResponse, RouteError, RouteResponse } from '../route'
-import { createSessionData, SessionData } from './common'
-import { getUserByUsername } from './database'
+import { createSessionData, SessionData } from './userCommon'
+import { getUserByUsername } from './userDatabase'
 
 const LoginInput = t.type({
   username: NonEmptyString,

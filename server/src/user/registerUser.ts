@@ -7,14 +7,14 @@ import {
   RouteError,
   RouteResponse
 } from '../route'
-import { createSessionData, SessionData } from './common'
+import { createSessionData, SessionData } from './userCommon'
 import { constVoid, pipe } from 'fp-ts/function'
 import { dbGet } from '../database/utils'
 import SQL from 'sql-template-strings'
 import { NonNegativeInteger, PositiveInteger } from '../globalDomain'
 import { boolean, either, taskEither } from 'fp-ts'
 import { commonErrors } from '../commonErrors'
-import { createUser, updateUser } from './database'
+import { createUser, updateUser } from './userDatabase'
 import { hash } from '../lib/bcryptjs'
 
 const RegisterInput = t.type({

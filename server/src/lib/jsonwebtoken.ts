@@ -74,9 +74,8 @@ export function signToken(
 
 export function verifyToken(
   token: NonEmptyString,
-  type: TokenType,
-  id: PositiveInteger
-): Either<RouteError, void> {
+  type: TokenType
+): Either<RouteError, PositiveInteger> {
   if (!process.env.SECRET) {
     return either.left<RouteError>({
       code: 'UNKNOWN',
@@ -104,14 +103,14 @@ export function verifyToken(
       }
     ),
     either.chain((result: UserToken) => {
-      if (result.type !== type || result.id !== id) {
+      if (result.type !== type) {
         return either.left<RouteError>({
           code: 'FORBIDDEN',
           message: 'Your token is invalid'
         })
       }
 
-      return either.right(void 0)
+      return either.right(result.id)
     })
   )
 }

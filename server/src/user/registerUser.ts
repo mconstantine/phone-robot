@@ -18,11 +18,14 @@ import { commonErrors } from '../commonErrors'
 import { createUser, updateUser } from './userDatabase'
 import { hash } from '../lib/bcryptjs'
 
-const RegisterInput = t.type({
-  username: NonEmptyString,
-  password: NonEmptyString,
-  passwordConfirmation: NonEmptyString
-}, 'RegisterInput')
+const RegisterInput = t.type(
+  {
+    username: NonEmptyString,
+    password: NonEmptyString,
+    passwordConfirmation: NonEmptyString
+  },
+  'RegisterInput'
+)
 type RegisterInput = t.TypeOf<typeof RegisterInput>
 
 function register(
@@ -97,4 +100,10 @@ function register(
   )
 }
 
-export const registerRoute = makeRoute(RegisterInput, SessionData, t.unknown, register)
+export const registerRoute = makeRoute(
+  RegisterInput,
+  SessionData,
+  t.unknown,
+  register,
+  false
+)

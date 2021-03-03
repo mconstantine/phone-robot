@@ -4,27 +4,36 @@ import SQL from 'sql-template-strings'
 import { dbGet, insert, remove, update } from '../database/utils'
 import { DateFromSQLString, PositiveInteger } from '../globalDomain'
 
-const User = t.strict({
-  id: PositiveInteger,
-  username: NonEmptyString,
-  password: NonEmptyString,
-  approved: BooleanFromNumber,
-  created_at: DateFromSQLString,
-  updated_at: DateFromSQLString
-}, 'User')
-type User = t.TypeOf<typeof User>
+export const User = t.strict(
+  {
+    id: PositiveInteger,
+    username: NonEmptyString,
+    password: NonEmptyString,
+    approved: BooleanFromNumber,
+    created_at: DateFromSQLString,
+    updated_at: DateFromSQLString
+  },
+  'User'
+)
+export type User = t.TypeOf<typeof User>
 
-const UserCreationInput = t.strict({
-  username: NonEmptyString,
-  password: NonEmptyString
-}, 'UserCreationInput')
+const UserCreationInput = t.strict(
+  {
+    username: NonEmptyString,
+    password: NonEmptyString
+  },
+  'UserCreationInput'
+)
 type UserCreationInput = t.TypeOf<typeof UserCreationInput>
 
-const UserUpdateInput = t.strict({
-  username: NonEmptyString,
-  password: NonEmptyString,
-  approved: BooleanFromNumber
-}, 'UserUpdateInput')
+const UserUpdateInput = t.partial(
+  {
+    username: NonEmptyString,
+    password: NonEmptyString,
+    approved: BooleanFromNumber
+  },
+  'UserUpdateInput'
+)
 type UserUpdateInput = t.TypeOf<typeof UserUpdateInput>
 
 export function createUser(input: UserCreationInput) {

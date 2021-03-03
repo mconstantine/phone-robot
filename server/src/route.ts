@@ -13,7 +13,8 @@ const ErrorCode = t.keyof(
     DECODING: true,
     DATABASE: true,
     CONFLICT: true,
-    INVALID_INPUT: true
+    INVALID_INPUT: true,
+    NOT_FOUND: true
   },
   'ErrorCode'
 )
@@ -23,35 +24,6 @@ export interface RouteError {
   code: ErrorCode
   message: string
   error?: Error
-}
-
-function foldRouterError<T>(
-  whenUnauthorized: (error: RouteError) => T,
-  whenForbidden: (error: RouteError) => T,
-  whenUnknown: (error: RouteError) => T,
-  whenDecoding: (error: RouteError) => T,
-  whenDatabase: (error: RouteError) => T,
-  whenConflict: (error: RouteError) => T,
-  whenInvalidInput: (error: RouteError) => T
-): (error: RouteError) => T {
-  return error => {
-    switch (error.code) {
-      case 'UNAUTHORIZED':
-        return whenUnauthorized(error)
-      case 'FORBIDDEN':
-        return whenForbidden(error)
-      case 'UNKNOWN':
-        return whenUnknown(error)
-      case 'DECODING':
-        return whenDecoding(error)
-      case 'DATABASE':
-        return whenDatabase(error)
-      case 'CONFLICT':
-        return whenConflict(error)
-      case 'INVALID_INPUT':
-        return whenInvalidInput(error)
-    }
-  }
 }
 
 export function createdRouteResponse<O>(result: O): RouteResponse<O> {
@@ -92,18 +64,24 @@ export function makeRoute<I, II, O, OO>(
         error => {
           error.error && console.log(error.error)
 
-          pipe(
-            error,
-            foldRouterError(
-              error => res.status(401).json(error),
-              error => res.status(403).json(error),
-              error => res.status(500).json(error),
-              error => res.status(400).json(error),
-              error => res.status(500).json(error),
-              error => res.status(409).json(error),
-              error => res.status(400).json(error)
-            )
-          )
+          switch (error.code) {
+            case 'UNAUTHORIZED':
+              return res.status(401).json(error)
+            case 'FORBIDDEN':
+              return res.status(403).json(error)
+            case 'UNKNOWN':
+              return res.status(500).json(error)
+            case 'DECODING':
+              return res.status(400).json(error)
+            case 'DATABASE':
+              return res.status(500).json(error)
+            case 'CONFLICT':
+              return res.status(409).json(error)
+            case 'INVALID_INPUT':
+              return res.status(400).json(error)
+            case 'NOT_FOUND':
+              return res.status(404).json(error)
+          }
         },
         response =>
           res.status(response.status).json(outputCodec.encode(response.result))

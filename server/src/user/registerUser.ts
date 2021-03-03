@@ -3,6 +3,7 @@ import * as t from 'io-ts'
 import { TaskEither } from 'fp-ts/TaskEither'
 import {
   createdRouteResponse,
+  HandlerInput,
   makeRoute,
   RouteError,
   RouteResponse
@@ -25,23 +26,23 @@ const RegisterInput = t.type({
 type RegisterInput = t.TypeOf<typeof RegisterInput>
 
 function register(
-  input: RegisterInput
+  input: HandlerInput<RegisterInput>
 ): TaskEither<RouteError, RouteResponse<SessionData>> {
-  if (input.password !== input.passwordConfirmation) {
+  if (input.body.password !== input.body.passwordConfirmation) {
     return taskEither.left<RouteError>({
       code: 'INVALID_INPUT',
       message: "Passwords don't match"
     })
   }
 
-  const encryptedPassword = hash(input.password)
+  const encryptedPassword = hash(input.body.password)
 
   if (either.isLeft(encryptedPassword)) {
     return taskEither.left(encryptedPassword.left)
   }
 
   const user = {
-    username: input.username,
+    username: input.body.username,
     password: encryptedPassword.right
   }
 
@@ -96,4 +97,4 @@ function register(
   )
 }
 
-export const registerRoute = makeRoute(RegisterInput, SessionData, register)
+export const registerRoute = makeRoute(RegisterInput, SessionData, t.unknown, register)

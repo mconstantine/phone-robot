@@ -4,6 +4,7 @@ import { ReaderTaskEither } from 'fp-ts/ReaderTaskEither'
 import * as t from 'io-ts'
 import { either, taskEither } from 'fp-ts'
 import { getDecodeErrors } from './lib/codecs'
+import { sequenceS } from 'fp-ts/Apply'
 
 const ErrorCode = t.keyof(
   {
@@ -45,15 +46,24 @@ export interface RouteResponse<O> {
   result: O
 }
 
-export function makeRoute<I, II, O, OO>(
+export interface HandlerInput<I, P = unknown> {
+  body: I
+  params: P
+}
+
+export function makeRoute<I, II, O, OO, P, PP>(
   inputCodec: t.Type<I, II>,
   outputCodec: t.Type<O, OO>,
-  handler: ReaderTaskEither<I, RouteError, RouteResponse<O>>
+  paramsCodec: t.Type<P, PP>,
+  handler: ReaderTaskEither<HandlerInput<I, P>, RouteError, RouteResponse<O>>
 ): (request: Request, response: Response) => void {
   return (req, res) => {
     const handleRequest = pipe(
-      req.body,
-      inputCodec.decode,
+      {
+        body: inputCodec.decode(req.body),
+        params: paramsCodec.decode(req.params)
+      },
+      sequenceS(either.either),
       either.mapLeft<t.Errors, RouteError>(errors => ({
         code: 'DECODING',
         message: getDecodeErrors(errors)

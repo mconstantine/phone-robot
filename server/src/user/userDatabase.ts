@@ -1,5 +1,9 @@
 import * as t from 'io-ts'
-import { BooleanFromNumber, NonEmptyString } from 'io-ts-types'
+import {
+  BooleanFromNumber,
+  DateFromISOString,
+  NonEmptyString
+} from 'io-ts-types'
 import SQL from 'sql-template-strings'
 import { dbGet, insert, remove, update } from '../database/utils'
 import { DateFromSQLString, PositiveInteger } from '../globalDomain'
@@ -8,14 +12,25 @@ export const User = t.strict(
   {
     id: PositiveInteger,
     username: NonEmptyString,
-    password: NonEmptyString,
     approved: BooleanFromNumber,
-    created_at: DateFromSQLString,
-    updated_at: DateFromSQLString
+    created_at: DateFromISOString,
+    updated_at: DateFromISOString
   },
   'User'
 )
 export type User = t.TypeOf<typeof User>
+
+const DatabaseUser = t.strict(
+  {
+    id: PositiveInteger,
+    username: NonEmptyString,
+    approved: BooleanFromNumber,
+    created_at: DateFromSQLString,
+    updated_at: DateFromSQLString
+  },
+  'DatabaseUser'
+)
+type DatabaseUser = t.TypeOf<typeof DatabaseUser>
 
 const UserCreationInput = t.strict(
   {
@@ -49,9 +64,12 @@ export function deleteUser(id: PositiveInteger) {
 }
 
 export function getUserById(id: PositiveInteger) {
-  return dbGet(SQL`SELECT * FROM user WHERE id = ${id}`, User)
+  return dbGet(SQL`SELECT * FROM user WHERE id = ${id}`, DatabaseUser)
 }
 
 export function getUserByUsername(username: NonEmptyString) {
-  return dbGet(SQL`SELECT * FROM user WHERE username = ${username}`, User)
+  return dbGet(
+    SQL`SELECT * FROM user WHERE username = ${username}`,
+    DatabaseUser
+  )
 }

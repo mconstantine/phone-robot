@@ -14,43 +14,14 @@ import { NonEmptyArray } from 'fp-ts/NonEmptyArray'
 import { Reader } from 'fp-ts/Reader'
 import { getDecodeErrors } from '../lib/codecs'
 
-interface InsertResult<T extends sqlite3.Statement> {
-  type: 'insert'
-  statement: Statement<T>
+interface InsertResult {
+  statement: Statement
   lastID: PositiveInteger
 }
 
-interface EditResult<T extends sqlite3.Statement> {
-  type: 'edit'
-  statement: Statement<T>
+interface EditResult {
+  statement: Statement
   changes: NonNegativeInteger
-}
-
-interface OtherResult<T extends sqlite3.Statement> {
-  type: 'other'
-  statement: Statement<T>
-}
-
-type DBResult<T extends sqlite3.Statement> =
-  | InsertResult<T>
-  | EditResult<T>
-  | OtherResult<T>
-
-export function foldDBResult<T extends sqlite3.Statement, O>(
-  whenInsert: (dbResult: InsertResult<T>) => O,
-  whenEdit: (dbResult: EditResult<T>) => O,
-  whenOther: (dbResult: OtherResult<T>) => O
-): (dbResult: DBResult<T>) => O {
-  return dbResult => {
-    switch (dbResult.type) {
-      case 'insert':
-        return whenInsert(dbResult)
-      case 'edit':
-        return whenEdit(dbResult)
-      case 'other':
-        return whenOther(dbResult)
-    }
-  }
 }
 
 let database: Option<Database> = option.none
@@ -88,7 +59,7 @@ export function getDatabase(): TaskEither<RouteError, Database> {
 export function dbRun(
   query: ISqlite.SqlType,
   ...args: any[]
-): TaskEither<RouteError, DBResult<sqlite3.Statement>> {
+): TaskEither<RouteError, ISqlite.RunResult> {
   return pipe(
     getDatabase(),
     taskEither.chain(db =>
@@ -100,27 +71,7 @@ export function dbRun(
           error: error as Error
         })
       )
-    ),
-    taskEither.map(result => {
-      if (result.lastID !== undefined && result.lastID > 0) {
-        return {
-          type: 'insert',
-          statement: result.stmt,
-          lastID: result.lastID as PositiveInteger
-        }
-      } else if (result.changes !== undefined) {
-        return {
-          type: 'edit',
-          statement: result.stmt,
-          changes: result.changes as NonNegativeInteger
-        }
-      } else {
-        return {
-          type: 'other',
-          statement: result.stmt
-        }
-      }
-    })
+    )
   )
 }
 
@@ -214,7 +165,7 @@ export function insert<I extends Record<string, any>, II>(
   tableName: string,
   _rows: I | NonEmptyArray<I>,
   codec: t.Type<I, II>
-): TaskEither<RouteError, InsertResult<sqlite3.Statement>> {
+): TaskEither<RouteError, InsertResult> {
   const rows: NonEmptyArray<II> = pipe(
     Array.isArray(_rows) ? _rows : nonEmptyArray.of(_rows),
     nonEmptyArray.map(removeUndefined) as Reader<
@@ -233,16 +184,25 @@ export function insert<I extends Record<string, any>, II>(
   const query = `INSERT INTO ${tableName} (${columns}) VALUES (${values})`
   const args = rows.map(row => Object.values(row)).flat()
 
-  const error = () =>
-    taskEither.left<RouteError>({
-      code: 'DATABASE',
-      message: 'INSERT query returned wrong kind of result'
-    })
-
   return pipe(
     dbRun(query, ...args),
-    taskEither.chain(
-      foldDBResult(result => taskEither.right(result), error, error)
+    taskEither.chain(result =>
+      pipe(
+        result.lastID,
+        option.fromNullable,
+        option.fold(
+          () =>
+            taskEither.left<RouteError>({
+              code: 'DATABASE',
+              message: 'Insert query did not return lastID'
+            }),
+          lastID =>
+            taskEither.right({
+              statement: result.stmt,
+              lastID: lastID as PositiveInteger
+            })
+        )
+      )
     )
   )
 }
@@ -252,7 +212,7 @@ export function update<I extends Record<string, any>, II>(
   id: PositiveInteger,
   row: I,
   codec: t.Type<I, II>
-): TaskEither<RouteError, EditResult<sqlite3.Statement>> {
+): TaskEither<RouteError, EditResult> {
   const encodedRow = codec.encode(row)
 
   // Magic reduce from { key: value } to [['key = ?'], [value]]
@@ -268,20 +228,29 @@ export function update<I extends Record<string, any>, II>(
       [[], []] as [string[], any[]]
     )
 
-  const error = () =>
-    taskEither.left<RouteError>({
-      code: 'DATABASE',
-      message: 'UPDATE query returned wrong kind of result'
-    })
-
   return pipe(
     dbRun(
       `UPDATE ${tableName} SET ${query.join(', ')} WHERE \`id\` = ?`,
       ...args,
       id
     ),
-    taskEither.chain(
-      foldDBResult(error, result => taskEither.right(result), error)
+    taskEither.chain(result =>
+      pipe(
+        result.changes,
+        option.fromNullable,
+        option.fold(
+          () =>
+            taskEither.left<RouteError>({
+              code: 'DATABASE',
+              message: 'Update query did not return changes count'
+            }),
+          changes =>
+            taskEither.right({
+              statement: result.stmt,
+              changes: changes as NonNegativeInteger
+            })
+        )
+      )
     )
   )
 }
@@ -289,7 +258,7 @@ export function update<I extends Record<string, any>, II>(
 export function remove<O extends Record<string, any>>(
   tableName: string,
   where?: Partial<O>
-): TaskEither<RouteError, EditResult<sqlite3.Statement>> {
+): TaskEither<RouteError, EditResult> {
   let query = `DELETE FROM ${tableName}`
   let args: any[] = []
 
@@ -302,16 +271,25 @@ export function remove<O extends Record<string, any>>(
     args = Object.values(where)
   }
 
-  const error = () =>
-    taskEither.left<RouteError>({
-      code: 'DATABASE',
-      message: 'DELETE query returned wrong kind of result'
-    })
-
   return pipe(
     dbRun(query, ...args),
-    taskEither.chain(
-      foldDBResult(error, result => taskEither.right(result), error)
+    taskEither.chain(result =>
+      pipe(
+        result.changes,
+        option.fromNullable,
+        option.fold(
+          () =>
+            taskEither.left<RouteError>({
+              code: 'DATABASE',
+              message: 'Delete query did not return changes count'
+            }),
+          changes =>
+            taskEither.right({
+              statement: result.stmt,
+              changes: changes as NonNegativeInteger
+            })
+        )
+      )
     )
   )
 }

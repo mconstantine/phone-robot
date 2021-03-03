@@ -8,7 +8,7 @@ import {
   NonEmptyString,
   optionFromNullable
 } from 'io-ts-types'
-import { PositiveInteger } from '../globalDomain'
+import { PositiveIntegerFromString } from '../globalDomain'
 import {
   HandlerInputWithAuth,
   makeRoute,
@@ -36,7 +36,7 @@ type UserUpdateInput = t.TypeOf<typeof UserUpdateInput>
 
 const UserUpdateParams = t.type(
   {
-    id: PositiveInteger
+    id: PositiveIntegerFromString
   },
   'UserUpdateParams'
 )
@@ -150,10 +150,11 @@ function update(
           )
         )
       }
-
-      return updateUser(user.id, data)
+      return pipe(
+        updateUser(user.id, data),
+        taskEither.chain(() => getUserById(user.id))
+      )
     }),
-    taskEither.chain(result => getUserById(result.lastID)),
     taskEither.chain(
       taskEither.fromOption<RouteError>(() => ({
         code: 'UNKNOWN',

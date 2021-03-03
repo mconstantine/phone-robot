@@ -1,7 +1,7 @@
 import { either } from 'fp-ts'
 import { pipe } from 'fp-ts/function'
 import * as t from 'io-ts'
-import { date } from 'io-ts-types'
+import { date, IntFromString } from 'io-ts-types'
 
 interface PositiveIntegerBrand {
   readonly PositiveInteger: unique symbol
@@ -12,6 +12,20 @@ export const PositiveInteger = t.brand(
   'PositiveInteger'
 )
 export type PositiveInteger = t.TypeOf<typeof PositiveInteger>
+
+export const PositiveIntegerFromString: t.Type<
+  PositiveInteger,
+  string
+> = new t.Type(
+  'PositiveIntegerFromString',
+  (u): u is PositiveInteger => IntFromString.is(u) && PositiveInteger.is(u),
+  (u, c) =>
+    pipe(
+      IntFromString.validate(u, c),
+      either.chain(n => PositiveInteger.validate(n, c))
+    ),
+  n => n.toString(10)
+)
 
 interface NonNegativeIntegerBrand {
   readonly NonNegativeInteger: unique symbol
@@ -29,7 +43,7 @@ export const DateFromSQLString: t.Type<Date, string> = new t.Type(
   date.is,
   (u, c) =>
     pipe(
-      t.string.decode(u),
+      t.string.validate(u, c),
       either.chain(s => {
         if (!sqlDatePattern.test(s)) {
           return t.failure(u, c)
@@ -37,7 +51,7 @@ export const DateFromSQLString: t.Type<Date, string> = new t.Type(
 
         const [, year, month, date, hours, minutes, seconds] = s
           .match(sqlDatePattern)!
-          .map(parseInt)
+          .map(s => parseInt(s, 10))
 
         return t.success(
           new Date(year!, month! - 1, date!, hours!, minutes!, seconds!)

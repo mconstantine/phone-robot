@@ -14,10 +14,15 @@ import { NonEmptyArray } from 'fp-ts/NonEmptyArray'
 import { Reader } from 'fp-ts/Reader'
 import { getDecodeErrors } from '../lib/codecs'
 
-interface MutationResult<T extends sqlite3.Statement> {
-  type: 'mutation'
+interface InsertResult<T extends sqlite3.Statement> {
+  type: 'insert'
   statement: Statement<T>
   lastID: PositiveInteger
+}
+
+interface EditResult<T extends sqlite3.Statement> {
+  type: 'edit'
+  statement: Statement<T>
   changes: NonNegativeInteger
 }
 
@@ -26,16 +31,22 @@ interface OtherResult<T extends sqlite3.Statement> {
   statement: Statement<T>
 }
 
-type DBResult<T extends sqlite3.Statement> = MutationResult<T> | OtherResult<T>
+type DBResult<T extends sqlite3.Statement> =
+  | InsertResult<T>
+  | EditResult<T>
+  | OtherResult<T>
 
 export function foldDBResult<T extends sqlite3.Statement, O>(
-  whenMutation: (dbResult: MutationResult<T>) => O,
+  whenInsert: (dbResult: InsertResult<T>) => O,
+  whenEdit: (dbResult: EditResult<T>) => O,
   whenOther: (dbResult: OtherResult<T>) => O
 ): (dbResult: DBResult<T>) => O {
   return dbResult => {
     switch (dbResult.type) {
-      case 'mutation':
-        return whenMutation(dbResult)
+      case 'insert':
+        return whenInsert(dbResult)
+      case 'edit':
+        return whenEdit(dbResult)
       case 'other':
         return whenOther(dbResult)
     }
@@ -91,11 +102,16 @@ export function dbRun(
       )
     ),
     taskEither.map(result => {
-      if (result.lastID !== undefined && result.changes !== undefined) {
+      if (result.lastID !== undefined && result.lastID > 0) {
         return {
-          type: 'mutation',
+          type: 'insert',
           statement: result.stmt,
-          lastID: result.lastID as PositiveInteger,
+          lastID: result.lastID as PositiveInteger
+        }
+      } else if (result.changes !== undefined) {
+        return {
+          type: 'edit',
+          statement: result.stmt,
           changes: result.changes as NonNegativeInteger
         }
       } else {
@@ -194,16 +210,16 @@ export function dbGetAll<O, OO>(
   )
 }
 
-export function insert<O extends Record<string, any>, OO>(
+export function insert<I extends Record<string, any>, II>(
   tableName: string,
-  _rows: O | NonEmptyArray<O>,
-  codec: t.Type<O, OO>
-): TaskEither<RouteError, MutationResult<sqlite3.Statement>> {
-  const rows: NonEmptyArray<OO> = pipe(
+  _rows: I | NonEmptyArray<I>,
+  codec: t.Type<I, II>
+): TaskEither<RouteError, InsertResult<sqlite3.Statement>> {
+  const rows: NonEmptyArray<II> = pipe(
     Array.isArray(_rows) ? _rows : nonEmptyArray.of(_rows),
     nonEmptyArray.map(removeUndefined) as Reader<
-      NonEmptyArray<O>,
-      NonEmptyArray<O>
+      NonEmptyArray<I>,
+      NonEmptyArray<I>
     >,
     nonEmptyArray.map(codec.encode)
   )
@@ -225,16 +241,18 @@ export function insert<O extends Record<string, any>, OO>(
 
   return pipe(
     dbRun(query, ...args),
-    taskEither.chain(foldDBResult(result => taskEither.right(result), error))
+    taskEither.chain(
+      foldDBResult(result => taskEither.right(result), error, error)
+    )
   )
 }
 
-export function update<O extends Record<string, any>, OO>(
+export function update<I extends Record<string, any>, II>(
   tableName: string,
   id: PositiveInteger,
-  row: O,
-  codec: t.Type<O, OO>
-): TaskEither<RouteError, MutationResult<sqlite3.Statement>> {
+  row: I,
+  codec: t.Type<I, II>
+): TaskEither<RouteError, EditResult<sqlite3.Statement>> {
   const encodedRow = codec.encode(row)
 
   // Magic reduce from { key: value } to [['key = ?'], [value]]
@@ -262,14 +280,16 @@ export function update<O extends Record<string, any>, OO>(
       ...args,
       id
     ),
-    taskEither.chain(foldDBResult(result => taskEither.right(result), error))
+    taskEither.chain(
+      foldDBResult(error, result => taskEither.right(result), error)
+    )
   )
 }
 
 export function remove<O extends Record<string, any>>(
   tableName: string,
   where?: Partial<O>
-): TaskEither<RouteError, MutationResult<sqlite3.Statement>> {
+): TaskEither<RouteError, EditResult<sqlite3.Statement>> {
   let query = `DELETE FROM ${tableName}`
   let args: any[] = []
 
@@ -290,7 +310,9 @@ export function remove<O extends Record<string, any>>(
 
   return pipe(
     dbRun(query, ...args),
-    taskEither.chain(foldDBResult(result => taskEither.right(result), error))
+    taskEither.chain(
+      foldDBResult(error, result => taskEither.right(result), error)
+    )
   )
 }
 

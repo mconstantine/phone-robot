@@ -90,25 +90,30 @@ export function makeRoute<I, II, O, OO, P, PP>(
 ): (request: Request, response: Response) => void {
   return (req, res) => {
     const handleError: Reader<RouteError, void> = error => {
+      const publicError = {
+        code: error.code,
+        message: error.message
+      }
+
       error.error && console.log(error.error)
 
       switch (error.code) {
         case 'UNAUTHORIZED':
-          return res.status(401).json(error)
+          return res.status(401).json(publicError)
         case 'FORBIDDEN':
-          return res.status(403).json(error)
+          return res.status(403).json(publicError)
         case 'UNKNOWN':
-          return res.status(500).json(error)
+          return res.status(500).json(publicError)
         case 'DECODING':
-          return res.status(400).json(error)
+          return res.status(400).json(publicError)
         case 'DATABASE':
-          return res.status(500).json(error)
+          return res.status(500).json(publicError)
         case 'CONFLICT':
-          return res.status(409).json(error)
+          return res.status(409).json(publicError)
         case 'INVALID_INPUT':
-          return res.status(400).json(error)
+          return res.status(400).json(publicError)
         case 'NOT_FOUND':
-          return res.status(404).json(error)
+          return res.status(404).json(publicError)
       }
     }
 
@@ -186,7 +191,7 @@ function authenticateUser(req: Request): TaskEither<RouteError, User> {
 
   return pipe(
     authorization || '',
-    authorization => authorization.substring(8),
+    authorization => authorization.substring(7),
     NonEmptyString.decode,
     either.mapLeft(() => error),
     either.chain(token => verifyToken(token, 'USER_ACCESS')),

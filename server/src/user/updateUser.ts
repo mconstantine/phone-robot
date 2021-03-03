@@ -8,7 +8,6 @@ import {
   NonEmptyString,
   optionFromNullable
 } from 'io-ts-types'
-import { PositiveIntegerFromString } from '../globalDomain'
 import {
   HandlerInputWithAuth,
   makeRoute,
@@ -22,6 +21,7 @@ import {
   updateUser,
   User
 } from './userDatabase'
+import { UserMutationParams } from './userCommon'
 
 const UserUpdateInput = t.type(
   {
@@ -34,16 +34,8 @@ const UserUpdateInput = t.type(
 )
 type UserUpdateInput = t.TypeOf<typeof UserUpdateInput>
 
-const UserUpdateParams = t.type(
-  {
-    id: PositiveIntegerFromString
-  },
-  'UserUpdateParams'
-)
-type UserUpdateParams = t.TypeOf<typeof UserUpdateParams>
-
 function update(
-  input: HandlerInputWithAuth<UserUpdateInput, UserUpdateParams>
+  input: HandlerInputWithAuth<UserUpdateInput, UserMutationParams>
 ): TaskEither<RouteError, RouteResponse<User>> {
   return pipe(
     getUserById(input.params.id),
@@ -168,6 +160,6 @@ function update(
 export const updateRoute = makeRoute(
   UserUpdateInput,
   User,
-  UserUpdateParams,
+  UserMutationParams,
   update
 )

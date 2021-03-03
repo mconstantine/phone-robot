@@ -1,0 +1,9 @@
+{
+  "editor.formatOnSave": true,
+  "git.ignoreLimitWarning": true,
+  "prettier.semi": false,
+  "prettier.singleQuote": true,
+  "prettier.trailingComma": "none",
+  "prettier.arrowParens": "avoid",
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

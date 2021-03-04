@@ -1,5 +1,5 @@
 import { Layout, Menu as AntdMenu } from 'antd'
-import { home, profile, useRouter } from './Router'
+import { home, profile, useRouter } from '../contexts/Router'
 import { MenuInfo } from 'rc-menu/lib/interface'
 
 export function Menu() {

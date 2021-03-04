@@ -1,5 +1,6 @@
-import { either, taskEither } from 'fp-ts'
-import { flow, pipe } from 'fp-ts/function'
+import { array, either, record, taskEither } from 'fp-ts'
+import { pipe } from 'fp-ts/function'
+import { Reader } from 'fp-ts/Reader'
 import { ReaderTaskEither } from 'fp-ts/ReaderTaskEither'
 import { TaskEither } from 'fp-ts/TaskEither'
 import * as t from 'io-ts'
@@ -19,6 +20,28 @@ const ErrorCode = t.keyof(
 )
 type ErrorCode = t.TypeOf<typeof ErrorCode>
 
+export function foldApiError<T>(
+  matches: Record<ErrorCode, (error: ApiError) => T>
+): Reader<ApiError, T> {
+  return error => matches[error.code](error)
+}
+
+export function foldPartialApiError<T>(
+  matches: Partial<Record<ErrorCode, (error: ApiError) => T>>,
+  defaultResult: T
+): Reader<ApiError, T> {
+  return foldApiError(
+    pipe(
+      ErrorCode.keys,
+      record.keys,
+      array.reduce(
+        {} as Record<ErrorCode, Reader<ApiError, T>>,
+        (res, key) => ({ ...res, [key]: matches[key] || (() => defaultResult) })
+      )
+    )
+  )
+}
+
 const ApiError = t.type({
   code: ErrorCode,
   message: t.string
@@ -32,11 +55,21 @@ function decodeResponse<O, OO>(
   return pipe(
     response,
     codec.decode,
-    either.mapLeft(
-      (): ApiError => ({
-        code: 'DECODING',
-        message: 'Unable to undestrand the server response. Please try again'
-      })
+    either.fold(
+      () =>
+        pipe(
+          ApiError.decode(response),
+          either.fold(
+            () =>
+              either.left<ApiError, O>({
+                code: 'DECODING',
+                message:
+                  'Unable to undestrand the server response. Please try again'
+              }),
+            error => either.left<ApiError, O>(error)
+          )
+        ),
+      res => either.right(res)
     ),
     taskEither.fromEither
   )
@@ -77,15 +110,10 @@ function request<I, II, O, OO>(
               ? JSON.stringify(inputCodec.encode(body))
               : undefined
         }),
-      flow(
-        ApiError.decode,
-        either.getOrElse(
-          (): ApiError => ({
-            code: 'UNKNOWN',
-            message: genericError
-          })
-        )
-      )
+      (): ApiError => ({
+        code: 'UNKNOWN',
+        message: genericError
+      })
     ),
     taskEither.chain(response =>
       taskEither.tryCatch(

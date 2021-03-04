@@ -1,7 +1,6 @@
-import 'antd/dist/antd.css'
 import { AccountGuard } from './components/AccountGuard'
-import { Account } from './contexts/AccountContext'
-import './App.css'
+import { Account } from './contexts/Account'
+import './App.less'
 
 function App() {
   return (

@@ -5,6 +5,7 @@ import { pipe } from 'fp-ts/function'
 import { initDatabase } from './database/init'
 import { taskEither } from 'fp-ts'
 import { userRouter } from './user/userIndex'
+import cors from 'cors'
 
 dotenv.config()
 const port = process.env.SERVER_PORT!
@@ -17,6 +18,7 @@ const init = pipe(
     },
     () => {
       express()
+        .use(cors())
         .use(bodyParser.json())
         .use(bodyParser.urlencoded({ extended: true }))
         .get('/', (_req, res) => res.end())

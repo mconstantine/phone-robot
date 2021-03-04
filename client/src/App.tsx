@@ -5,25 +5,28 @@ import { SpinBlock } from './components/SpinBlock/SpinBlock'
 import { Layout } from 'antd'
 import { Menu } from './components/Menu'
 import { flow } from 'fp-ts/function'
+import { Account } from './contexts/AccountContext'
 
 const HomePage = lazy(() => import('./components/Home/HomePage'))
 const ProfilePage = lazy(() => import('./components/Profile/ProfilePage'))
 
 function App() {
   return (
-    <Layout.Content>
-      <Suspense fallback={<SpinBlock />}>
-        <Router
-          render={flow(
-            foldLocation({
-              Home: () => <HomePage />,
-              Profile: () => <ProfilePage />
-            }),
-            renderPage
-          )}
-        />
-      </Suspense>
-    </Layout.Content>
+    <Account>
+      <Layout.Content>
+        <Suspense fallback={<SpinBlock />}>
+          <Router
+            render={flow(
+              foldLocation({
+                Home: () => <HomePage />,
+                Profile: () => <ProfilePage />
+              }),
+              renderPage
+            )}
+          />
+        </Suspense>
+      </Layout.Content>
+    </Account>
   )
 }
 

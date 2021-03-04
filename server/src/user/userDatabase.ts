@@ -12,6 +12,7 @@ export const User = t.strict(
   {
     id: PositiveInteger,
     username: NonEmptyString,
+    name: NonEmptyString,
     approved: t.boolean,
     created_at: DateFromISOString,
     updated_at: DateFromISOString
@@ -24,6 +25,8 @@ export const DatabaseUser = t.strict(
   {
     id: PositiveInteger,
     username: NonEmptyString,
+    password: NonEmptyString,
+    name: NonEmptyString,
     approved: BooleanFromNumber,
     created_at: DateFromSQLString,
     updated_at: DateFromSQLString
@@ -35,6 +38,7 @@ export type DatabaseUser = t.TypeOf<typeof DatabaseUser>
 const UserCreationInput = t.strict(
   {
     username: NonEmptyString,
+    name: NonEmptyString,
     password: NonEmptyString
   },
   'UserCreationInput'
@@ -44,6 +48,7 @@ type UserCreationInput = t.TypeOf<typeof UserCreationInput>
 const UserUpdateInput = t.partial(
   {
     username: NonEmptyString,
+    name: NonEmptyString,
     password: NonEmptyString,
     approved: BooleanFromNumber
   },

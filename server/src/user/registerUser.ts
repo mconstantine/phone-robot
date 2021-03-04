@@ -21,6 +21,7 @@ import { hash } from '../lib/bcryptjs'
 const RegisterInput = t.type(
   {
     username: NonEmptyString,
+    name: NonEmptyString,
     password: NonEmptyString,
     passwordConfirmation: NonEmptyString
   },
@@ -46,6 +47,7 @@ function register(
 
   const user = {
     username: input.body.username,
+    name: input.body.name,
     password: encryptedPassword.right
   }
 

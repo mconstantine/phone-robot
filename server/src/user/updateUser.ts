@@ -22,6 +22,7 @@ import { UserMutationParams } from './userCommon'
 const UserUpdateInput = t.type(
   {
     username: optionFromNullable(NonEmptyString),
+    name: optionFromNullable(NonEmptyString),
     approved: optionFromNullable(t.boolean),
     password: optionFromNullable(NonEmptyString),
     passwordConfirmation: optionFromNullable(NonEmptyString)
@@ -78,6 +79,15 @@ function update(
     ),
     taskEither.chain(user =>
       pipe(
+        input.body.name,
+        option.fold(
+          () => taskEither.right(user),
+          () => forbidNonCurrentUser(input.currentUser, user)
+        )
+      )
+    ),
+    taskEither.chain(user =>
+      pipe(
         input.body.approved,
         option.fold(
           () => taskEither.right(user),
@@ -128,6 +138,7 @@ function update(
     taskEither.chain(user => {
       const data = {
         username: option.toUndefined(input.body.username),
+        name: option.toUndefined(input.body.name),
         approved: option.toUndefined(input.body.approved),
         ...pipe(
           {

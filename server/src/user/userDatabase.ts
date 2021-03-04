@@ -20,7 +20,7 @@ export const User = t.strict(
 )
 export type User = t.TypeOf<typeof User>
 
-const DatabaseUser = t.strict(
+export const DatabaseUser = t.strict(
   {
     id: PositiveInteger,
     username: NonEmptyString,
@@ -30,7 +30,7 @@ const DatabaseUser = t.strict(
   },
   'DatabaseUser'
 )
-type DatabaseUser = t.TypeOf<typeof DatabaseUser>
+export type DatabaseUser = t.TypeOf<typeof DatabaseUser>
 
 const UserCreationInput = t.strict(
   {

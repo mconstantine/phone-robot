@@ -3,11 +3,7 @@ import { pipe } from 'fp-ts/function'
 import { sequenceS } from 'fp-ts/Apply'
 import { TaskEither } from 'fp-ts/TaskEither'
 import * as t from 'io-ts'
-import {
-  BooleanFromNumber,
-  NonEmptyString,
-  optionFromNullable
-} from 'io-ts-types'
+import { NonEmptyString, optionFromNullable } from 'io-ts-types'
 import {
   HandlerInputWithAuth,
   makeRoute,
@@ -26,7 +22,7 @@ import { UserMutationParams } from './userCommon'
 const UserUpdateInput = t.type(
   {
     username: optionFromNullable(NonEmptyString),
-    approved: optionFromNullable(BooleanFromNumber),
+    approved: optionFromNullable(t.boolean),
     password: optionFromNullable(NonEmptyString),
     passwordConfirmation: optionFromNullable(NonEmptyString)
   },
@@ -52,24 +48,29 @@ function update(
           () => taskEither.right(user),
           username =>
             pipe(
-              username !== user.username,
-              boolean.fold(
-                () => taskEither.right(user),
-                () =>
-                  pipe(
-                    getUserByUsername(username),
-                    taskEither.chain(
-                      option.fold(
-                        () => taskEither.right(user),
-                        () =>
-                          taskEither.left<RouteError>({
-                            code: 'CONFLICT',
-                            message:
-                              'A user with the username you want to use already exists'
-                          })
+              forbidNonCurrentUser(input.currentUser, user),
+              taskEither.chain(() =>
+                pipe(
+                  username !== user.username,
+                  boolean.fold(
+                    () => taskEither.right(user),
+                    () =>
+                      pipe(
+                        getUserByUsername(username),
+                        taskEither.chain(
+                          option.fold(
+                            () => taskEither.right(user),
+                            () =>
+                              taskEither.left<RouteError>({
+                                code: 'CONFLICT',
+                                message:
+                                  'A user with the username you want to use already exists'
+                              })
+                          )
+                        )
                       )
-                    )
                   )
+                )
               )
             )
         )
@@ -80,25 +81,18 @@ function update(
         input.body.approved,
         option.fold(
           () => taskEither.right(user),
-          boolean.fold(
-            () =>
-              taskEither.left<RouteError>({
-                code: 'FORBIDDEN',
-                message: 'Users cannot be disabled'
-              }),
-            () =>
-              pipe(
-                user.id !== input.currentUser.id,
-                boolean.fold(
-                  () =>
-                    taskEither.left<RouteError>({
-                      code: 'FORBIDDEN',
-                      message: 'You cannot approve yourself'
-                    }),
-                  () => taskEither.right(user)
-                )
+          () =>
+            pipe(
+              user.id !== input.currentUser.id,
+              boolean.fold(
+                () =>
+                  taskEither.left<RouteError>({
+                    code: 'FORBIDDEN',
+                    message: 'You cannot approve yourself'
+                  }),
+                () => taskEither.right(user)
               )
-          )
+            )
         )
       )
     ),
@@ -113,14 +107,19 @@ function update(
           () => taskEither.right(user),
           ({ password, passwordConfirmation }) =>
             pipe(
-              password === passwordConfirmation,
-              boolean.fold(
-                () =>
-                  taskEither.left<RouteError>({
-                    code: 'INVALID_INPUT',
-                    message: "Passwords don't match"
-                  }),
-                () => taskEither.right(user)
+              forbidNonCurrentUser(input.currentUser, user),
+              taskEither.chain(user =>
+                pipe(
+                  password === passwordConfirmation,
+                  boolean.fold(
+                    () =>
+                      taskEither.left<RouteError>({
+                        code: 'INVALID_INPUT',
+                        message: "Passwords don't match"
+                      }),
+                    () => taskEither.right(user)
+                  )
+                )
               )
             )
         )
@@ -154,6 +153,23 @@ function update(
       }))
     ),
     taskEither.map(okRouteResponse)
+  )
+}
+
+function forbidNonCurrentUser(
+  currentUser: User,
+  user: User
+): TaskEither<RouteError, User> {
+  return pipe(
+    currentUser.id === user.id,
+    boolean.fold(
+      () =>
+        taskEither.left<RouteError>({
+          code: 'FORBIDDEN',
+          message: 'You can only update your own data'
+        }),
+      () => taskEither.right(user)
+    )
   )
 }
 

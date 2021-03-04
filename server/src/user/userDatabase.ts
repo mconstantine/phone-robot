@@ -12,7 +12,7 @@ export const User = t.strict(
   {
     id: PositiveInteger,
     username: NonEmptyString,
-    approved: BooleanFromNumber,
+    approved: t.boolean,
     created_at: DateFromISOString,
     updated_at: DateFromISOString
   },

@@ -1,18 +1,15 @@
-import { constVoid } from 'fp-ts/function'
-import { Reader } from 'fp-ts/Reader'
 import * as t from 'io-ts'
 import { DateFromISOString, NonEmptyString } from 'io-ts-types'
-import { createContext, PropsWithChildren, useContext, useReducer } from 'react'
 
-const AnonymousAccount = t.type(
+export const AnonymousAccount = t.type(
   {
     type: t.literal('Anonymous')
   },
   'AnonymousAccount'
 )
-type AnonymousAccount = t.TypeOf<typeof AnonymousAccount>
+export type AnonymousAccount = t.TypeOf<typeof AnonymousAccount>
 
-const LoggedInAccount = t.type(
+export const LoggedInAccount = t.type(
   {
     type: t.literal('LoggedIn'),
     accessToken: NonEmptyString,
@@ -21,7 +18,7 @@ const LoggedInAccount = t.type(
   },
   'LoggedInAccount'
 )
-type LoggedInAccount = t.TypeOf<typeof LoggedInAccount>
+export type LoggedInAccount = t.TypeOf<typeof LoggedInAccount>
 
 export const AccountState = t.union(
   [AnonymousAccount, LoggedInAccount],
@@ -29,18 +26,8 @@ export const AccountState = t.union(
 )
 export type AccountState = t.TypeOf<typeof AccountState>
 
-export function foldAccount<T>(
-  whenAnonymous: (account: AnonymousAccount) => T,
-  whenLoggedIn: (account: LoggedInAccount) => T
-): (account: AccountState) => T {
-  return account => {
-    switch (account.type) {
-      case 'Anonymous':
-        return whenAnonymous(account)
-      case 'LoggedIn':
-        return whenLoggedIn(account)
-    }
-  }
+export function anonymous(): AccountState {
+  return { type: 'Anonymous' }
 }
 
 interface LoginAction {
@@ -61,9 +48,12 @@ interface RefreshTokenAction {
   expiration: Date
 }
 
-type Action = LoginAction | LogoutAction | RefreshTokenAction
+export type AccountAction = LoginAction | LogoutAction | RefreshTokenAction
 
-function accountReducer(state: AccountState, action: Action): AccountState {
+export function accountReducer(
+  state: AccountState,
+  action: AccountAction
+): AccountState {
   switch (state.type) {
     case 'Anonymous':
       switch (action.type) {
@@ -96,32 +86,4 @@ function accountReducer(state: AccountState, action: Action): AccountState {
           }
       }
   }
-}
-
-interface AccountContext {
-  account: AccountState
-  dispatchAccountAction: Reader<Action, void>
-}
-
-const AccountContext = createContext<AccountContext>({
-  account: { type: 'Anonymous' },
-  dispatchAccountAction: constVoid
-})
-
-interface Props {}
-
-export function Account(props: PropsWithChildren<Props>) {
-  const [account, dispatchAccountAction] = useReducer(accountReducer, {
-    type: 'Anonymous'
-  })
-
-  return (
-    <AccountContext.Provider value={{ account, dispatchAccountAction }}>
-      {props.children}
-    </AccountContext.Provider>
-  )
-}
-
-export function useAccount(): AccountContext {
-  return useContext(AccountContext)
 }

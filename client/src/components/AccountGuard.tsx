@@ -4,7 +4,7 @@ import { SpinBlock } from './SpinBlock/SpinBlock'
 import { Layout } from 'antd'
 import { flow, pipe } from 'fp-ts/function'
 import { Menu } from './Menu'
-import { foldAccount, useAccount } from '../contexts/Account'
+import { foldAccount, useAccount } from '../contexts/Account/Account'
 import { LoginPage } from './Login/LoginPage'
 
 const HomePage = lazy(() => import('./Home/HomePage'))

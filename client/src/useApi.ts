@@ -1,10 +1,14 @@
 import { array, either, option, record, taskEither } from 'fp-ts'
 import { pipe } from 'fp-ts/function'
+import { IO } from 'fp-ts/IO'
 import { Option } from 'fp-ts/Option'
 import { Reader } from 'fp-ts/Reader'
 import { ReaderTaskEither } from 'fp-ts/ReaderTaskEither'
 import { TaskEither } from 'fp-ts/TaskEither'
 import * as t from 'io-ts'
+import { useEffect, useState } from 'react'
+import { foldAccount, useAccount } from './contexts/Account/Account'
+import { AccountState } from './contexts/Account/AccountState'
 
 const ErrorCode = t.keyof(
   {
@@ -89,12 +93,14 @@ function decodeResponse<O, OO>(
 function request<O, OO>(
   url: string,
   method: 'GET' | 'DELETE',
-  outputCodec: t.Type<O, OO>
+  outputCodec: t.Type<O, OO>,
+  account: AccountState
 ): TaskEither<ApiError, O>
 function request<I, II, O, OO>(
   url: string,
   method: 'POST' | 'PATCH',
   outputCodec: t.Type<O, OO>,
+  account: AccountState,
   body: I,
   inputCodec: t.Type<I, II>
 ): TaskEither<ApiError, O>
@@ -102,20 +108,30 @@ function request<I, II, O, OO>(
   url: string,
   method: 'GET' | 'DELETE' | 'POST' | 'PATCH',
   outputCodec: t.Type<O, OO>,
+  account: AccountState,
   body?: I,
   inputCodec?: t.Type<I, II>
 ): TaskEither<ApiError, O> {
   const genericError =
     'An unexpected error occurred during a network request. Please try again'
 
+  const headers = pipe(
+    account,
+    foldAccount(
+      () => ({ 'Content-Type': 'application/json' }),
+      account => ({
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${account.accessToken}`
+      })
+    )
+  )
+
   return pipe(
     taskEither.tryCatch(
       () =>
         window.fetch(process.env.REACT_APP_API_URL + url, {
           method,
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers,
           body:
             body && inputCodec
               ? JSON.stringify(inputCodec.encode(body))
@@ -171,27 +187,33 @@ export function apiCall<I, II, O, OO>(
   }
 }
 
-export function useGet<O, OO>(
-  apiCall: ApiCallNoBody<O, OO>
-): TaskEither<ApiError, O> {
-  return request(apiCall.url, 'GET', apiCall.outputCodec)
-}
-
 export function usePost<I, II, O, OO>(
   apiCall: ApiCall<I, II, O, OO>
 ): ReaderTaskEither<I, ApiError, O> {
+  const { account } = useAccount()
+
   return input =>
-    request(apiCall.url, 'POST', apiCall.outputCodec, input, apiCall.inputCodec)
+    request(
+      apiCall.url,
+      'POST',
+      apiCall.outputCodec,
+      account,
+      input,
+      apiCall.inputCodec
+    )
 }
 
 export function usePatch<I, II, O, OO>(
   apiCall: ApiCall<I, II, O, OO>
 ): ReaderTaskEither<I, ApiError, O> {
+  const { account } = useAccount()
+
   return input =>
     request(
       apiCall.url,
       'PATCH',
       apiCall.outputCodec,
+      account,
       input,
       apiCall.inputCodec
     )
@@ -200,5 +222,71 @@ export function usePatch<I, II, O, OO>(
 export function useDelete<O, OO>(
   apiCall: ApiCallNoBody<O, OO>
 ): ReaderTaskEither<void, ApiError, O> {
-  return () => request(apiCall.url, 'DELETE', apiCall.outputCodec)
+  const { account } = useAccount()
+  return () => request(apiCall.url, 'DELETE', apiCall.outputCodec, account)
+}
+
+interface LoadingRemoteData {
+  type: 'Loading'
+}
+
+interface ErrorRemoteData {
+  type: 'Error'
+  error: ApiError
+}
+
+interface SuccessRemoteData<O> {
+  type: 'Success'
+  data: O
+}
+
+type RemoteData<O> = LoadingRemoteData | ErrorRemoteData | SuccessRemoteData<O>
+
+export function foldRemoteData<O, T>(
+  whenLoading: IO<T>,
+  whenError: Reader<ApiError, T>,
+  whenSuccess: Reader<O, T>
+): Reader<RemoteData<O>, T> {
+  return remoteData => {
+    switch (remoteData.type) {
+      case 'Loading':
+        return whenLoading()
+      case 'Error':
+        return whenError(remoteData.error)
+      case 'Success':
+        return whenSuccess(remoteData.data)
+    }
+  }
+}
+
+export function useGet<O, OO>(apiCall: ApiCallNoBody<O, OO>): RemoteData<O> {
+  const { account } = useAccount()
+
+  const [remoteData, setRemoteData] = useState<RemoteData<O>>({
+    type: 'Loading'
+  })
+
+  useEffect(() => {
+    setRemoteData({ type: 'Loading' })
+
+    const doRequest = pipe(
+      request(apiCall.url, 'GET', apiCall.outputCodec, account),
+      taskEither.bimap(
+        error =>
+          setRemoteData({
+            type: 'Error',
+            error
+          }),
+        data =>
+          setRemoteData({
+            type: 'Success',
+            data
+          })
+      )
+    )
+
+    doRequest()
+  }, [apiCall, account])
+
+  return remoteData
 }

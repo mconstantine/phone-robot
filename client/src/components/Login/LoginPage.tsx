@@ -1,7 +1,7 @@
 import { pipe } from 'fp-ts/function'
 import { useState } from 'react'
 import { LoginForm } from './LoginForm'
-import { UserForm } from '../UserForm/UserForm'
+import { RegisterForm } from './RegisterForm/RegisterForm'
 
 type Mode = 'Register' | 'Login'
 
@@ -25,7 +25,7 @@ export function LoginPage() {
   return pipe(
     mode,
     foldMode(
-      () => <UserForm mode="Register" onSwitchMode={() => setMode('Login')} />,
+      () => <RegisterForm onSwitchMode={() => setMode('Login')} />,
       () => <LoginForm onSwitchMode={() => setMode('Register')} />
     )
   )

@@ -15,14 +15,14 @@ interface SuccessState {
   type: 'Success'
 }
 
-type UserFormState = IdleState | ErrorState | LoadingState | SuccessState
+type RegisterFormState = IdleState | ErrorState | LoadingState | SuccessState
 
-export function foldUserFormState<T>(
+export function foldRegisterFormState<T>(
   whenIdle: (state: IdleState) => T,
   whenLoading: (state: LoadingState) => T,
   whenError: (state: ErrorState) => T,
   whenSuccess: (state: SuccessState) => T
-): (state: UserFormState) => T {
+): (state: RegisterFormState) => T {
   return state => {
     switch (state.type) {
       case 'Idle':
@@ -50,12 +50,12 @@ interface SuccessAction {
   type: 'Success'
 }
 
-type UserFormAction = LoadingAction | ErrorAction | SuccessAction
+type RegisterFormAction = LoadingAction | ErrorAction | SuccessAction
 
-export function userFormReducer(
-  state: UserFormState,
-  action: UserFormAction
-): UserFormState {
+export function registerFormReducer(
+  state: RegisterFormState,
+  action: RegisterFormAction
+): RegisterFormState {
   switch (state.type) {
     case 'Idle':
       switch (action.type) {

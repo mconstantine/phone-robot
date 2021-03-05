@@ -14,20 +14,16 @@ import { QuestionCircleFilled } from '@ant-design/icons'
 import { useReducer } from 'react'
 import { either, option, taskEither } from 'fp-ts'
 import { constFalse, constNull, constTrue, flow, pipe } from 'fp-ts/function'
-import * as api from '../api'
-import {
-  foldPartialApiError,
-  suppressedApiError,
-  usePost
-} from '../../../useApi'
-import { registerFormReducer, foldRegisterFormState } from './RegisterFormState'
+import * as api from '../Login/api'
+import { foldPartialApiError, suppressedApiError, usePost } from '../../useApi'
+import { userFormReducer, foldUserFormState } from './UserFormState'
 
 interface Props {
   onSwitchMode: IO<void>
 }
 
-export function RegisterForm(props: Props) {
-  const [state, dispatch] = useReducer(registerFormReducer, {
+export function UserForm(props: Props) {
+  const [state, dispatch] = useReducer(userFormReducer, {
     type: 'Idle'
   })
 
@@ -130,12 +126,7 @@ export function RegisterForm(props: Props) {
               htmlType="submit"
               loading={pipe(
                 state,
-                foldRegisterFormState(
-                  constFalse,
-                  constTrue,
-                  constFalse,
-                  constFalse
-                )
+                foldUserFormState(constFalse, constTrue, constFalse, constFalse)
               )}
             >
               Submit
@@ -147,7 +138,7 @@ export function RegisterForm(props: Props) {
 
           {pipe(
             state,
-            foldRegisterFormState(
+            foldUserFormState(
               constNull,
               constNull,
               error => <Alert type="error" message={error} />,
@@ -161,7 +152,7 @@ export function RegisterForm(props: Props) {
 
   return pipe(
     state,
-    foldRegisterFormState(
+    foldUserFormState(
       () => form,
       () => form,
       () => form,

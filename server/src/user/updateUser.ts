@@ -1,4 +1,4 @@
-import { boolean, option, taskEither } from 'fp-ts'
+import { boolean, either, option, taskEither } from 'fp-ts'
 import { pipe } from 'fp-ts/function'
 import { sequenceS } from 'fp-ts/Apply'
 import { TaskEither } from 'fp-ts/TaskEither'
@@ -18,6 +18,9 @@ import {
   User
 } from './userDatabase'
 import { UserMutationParams } from './userCommon'
+import { hash } from '../lib/bcryptjs'
+import { Option } from 'fp-ts/Option'
+import { Either } from 'fp-ts/Either'
 
 const UserUpdateInput = t.type(
   {
@@ -136,22 +139,29 @@ function update(
       )
     ),
     taskEither.chain(user => {
+      const password: Either<RouteError, Option<NonEmptyString>> = pipe(
+        {
+          password: input.body.password,
+          passwordConfirmation: input.body.passwordConfirmation
+        },
+        sequenceS(option.option),
+        option.fold(
+          () => either.right(option.none),
+          ({ password }) => pipe(hash(password), either.map(option.some))
+        )
+      )
+
+      if (either.isLeft(password)) {
+        return taskEither.left(password.left)
+      }
+
       const data = {
         username: option.toUndefined(input.body.username),
         name: option.toUndefined(input.body.name),
         approved: option.toUndefined(input.body.approved),
-        ...pipe(
-          {
-            password: input.body.password,
-            passwordConfirmation: input.body.passwordConfirmation
-          },
-          sequenceS(option.option),
-          option.fold(
-            () => ({}),
-            ({ password }) => ({ password })
-          )
-        )
+        password: pipe(password.right, option.toUndefined)
       }
+
       return pipe(
         updateUser(user.id, data),
         taskEither.chain(() => getUserById(user.id))

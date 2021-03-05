@@ -1,5 +1,6 @@
-import { array, either, record, taskEither } from 'fp-ts'
+import { array, either, option, record, taskEither } from 'fp-ts'
 import { pipe } from 'fp-ts/function'
+import { Option } from 'fp-ts/Option'
 import { Reader } from 'fp-ts/Reader'
 import { ReaderTaskEither } from 'fp-ts/ReaderTaskEither'
 import { TaskEither } from 'fp-ts/TaskEither'
@@ -19,6 +20,22 @@ const ErrorCode = t.keyof(
   'ErrorCode'
 )
 type ErrorCode = t.TypeOf<typeof ErrorCode>
+
+const ApiError = t.type({
+  code: ErrorCode,
+  message: t.string
+})
+type ApiError = t.TypeOf<typeof ApiError>
+
+export function suppressedApiError(message: Option<string>): ApiError {
+  return {
+    code: 'UNKNOWN',
+    message: pipe(
+      message,
+      option.getOrElse(() => '')
+    )
+  }
+}
 
 export function foldApiError<T>(
   matches: Record<ErrorCode, (error: ApiError) => T>
@@ -41,12 +58,6 @@ export function foldPartialApiError<T>(
     )
   )
 }
-
-const ApiError = t.type({
-  code: ErrorCode,
-  message: t.string
-})
-type ApiError = t.TypeOf<typeof ApiError>
 
 function decodeResponse<O, OO>(
   response: OO,

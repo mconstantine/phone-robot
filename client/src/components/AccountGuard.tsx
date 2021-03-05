@@ -16,21 +16,23 @@ export function AccountGuard() {
   return pipe(
     account,
     foldAccount(
-      () => <LoginPage />,
       () => (
-        <Layout.Content>
-          <Suspense fallback={<SpinBlock />}>
-            <Router
-              render={flow(
-                foldLocation({
-                  Home: () => <HomePage />,
-                  Profile: () => <ProfilePage />
-                }),
-                renderPage
-              )}
-            />
-          </Suspense>
-        </Layout.Content>
+        <div className="Page">
+          <LoginPage />
+        </div>
+      ),
+      () => (
+        <Suspense fallback={<SpinBlock />}>
+          <Router
+            render={flow(
+              foldLocation({
+                Home: () => <HomePage />,
+                Profile: () => <ProfilePage />
+              }),
+              renderPage
+            )}
+          />
+        </Suspense>
       )
     )
   )
@@ -40,7 +42,7 @@ function renderPage(content: JSX.Element) {
   return (
     <div className="Page">
       <Menu />
-      {content}
+      <Layout.Content>{content}</Layout.Content>
     </div>
   )
 }

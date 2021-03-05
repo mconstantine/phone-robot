@@ -14,12 +14,36 @@ import { QuestionCircleFilled } from '@ant-design/icons'
 import { useReducer } from 'react'
 import { either, option, taskEither } from 'fp-ts'
 import { constFalse, constNull, constTrue, flow, pipe } from 'fp-ts/function'
-import * as api from '../Login/api'
+import * as loginApi from '../Login/api'
 import { foldPartialApiError, suppressedApiError, usePost } from '../../useApi'
 import { userFormReducer, foldUserFormState } from './UserFormState'
+import { User } from './api'
+import { Reader } from 'fp-ts/Reader'
 
-interface Props {
+interface RegisterUserProps {
+  mode: 'Register'
   onSwitchMode: IO<void>
+}
+
+interface EditUserProps {
+  mode: 'Edit'
+  user: User
+}
+
+type Props = RegisterUserProps | EditUserProps
+
+function foldPropsMode<T>(
+  whenRegister: (props: RegisterUserProps) => T,
+  whenEdit: (props: EditUserProps) => T
+): Reader<Props, T> {
+  return props => {
+    switch (props.mode) {
+      case 'Register':
+        return whenRegister(props)
+      case 'Edit':
+        return whenEdit(props)
+    }
+  }
 }
 
 export function UserForm(props: Props) {
@@ -27,12 +51,12 @@ export function UserForm(props: Props) {
     type: 'Idle'
   })
 
-  const register = usePost(api.register)
+  const register = usePost(loginApi.register)
 
   const onSubmit = (data: unknown) => {
     const doRegister = pipe(
       data,
-      api.RegistrationInput.decode,
+      loginApi.RegistrationInput.decode,
       either.mapLeft(() => suppressedApiError(option.none)),
       taskEither.fromEither,
       taskEither.chain(data => register(data)),
@@ -131,9 +155,17 @@ export function UserForm(props: Props) {
             >
               Submit
             </Button>
-            <Button type="link" onClick={props.onSwitchMode}>
-              Login
-            </Button>
+            {pipe(
+              props,
+              foldPropsMode(
+                props => (
+                  <Button type="link" onClick={props.onSwitchMode}>
+                    Login
+                  </Button>
+                ),
+                constNull
+              )
+            )}
           </Form.Item>
 
           {pipe(
@@ -156,16 +188,23 @@ export function UserForm(props: Props) {
       () => form,
       () => form,
       () => form,
-      () => (
-        <Layout.Content>
-          <Result
-            status="success"
-            title="You've been registered"
-            subTitle="Now you have to wait for one of the other users to approve you. If you know anyone, this could be a good time for texting them."
-            extra={<Button onClick={props.onSwitchMode}>Login</Button>}
-          />
-        </Layout.Content>
-      )
+      () =>
+        pipe(
+          props,
+          foldPropsMode(
+            props => (
+              <Layout.Content>
+                <Result
+                  status="success"
+                  title="You've been registered"
+                  subTitle="Now you have to wait for one of the other users to approve you. If you know anyone, this could be a good time for texting them."
+                  extra={<Button onClick={props.onSwitchMode}>Login</Button>}
+                />
+              </Layout.Content>
+            ),
+            constNull
+          )
+        )
     )
   )
 }

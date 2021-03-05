@@ -25,7 +25,7 @@ export function LoginPage() {
   return pipe(
     mode,
     foldMode(
-      () => <UserForm onSwitchMode={() => setMode('Login')} />,
+      () => <UserForm mode="Register" onSwitchMode={() => setMode('Login')} />,
       () => <LoginForm onSwitchMode={() => setMode('Register')} />
     )
   )

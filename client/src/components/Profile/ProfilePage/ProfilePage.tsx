@@ -28,10 +28,10 @@ import {
 } from './ProfilePageState'
 
 export default function ProfilePage() {
-  const getProfile = useGet(api.getProfile)
+  const [profile] = useGet(api.getProfile)
 
   return pipe(
-    getProfile,
+    profile,
     foldRemoteData(
       () => <SpinBlock />,
       error => (

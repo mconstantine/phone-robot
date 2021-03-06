@@ -259,14 +259,16 @@ export function foldRemoteData<O, T>(
   }
 }
 
-export function useGet<O, OO>(apiCall: ApiCallNoBody<O, OO>): RemoteData<O> {
+export function useGet<O, OO>(
+  apiCall: ApiCallNoBody<O, OO>
+): [RemoteData<O>, IO<void>] {
   const { account } = useAccount()
 
   const [remoteData, setRemoteData] = useState<RemoteData<O>>({
     type: 'Loading'
   })
 
-  useEffect(() => {
+  const refresh = () => {
     setRemoteData({ type: 'Loading' })
 
     const doRequest = pipe(
@@ -286,7 +288,9 @@ export function useGet<O, OO>(apiCall: ApiCallNoBody<O, OO>): RemoteData<O> {
     )
 
     doRequest()
-  }, [apiCall, account])
+  }
 
-  return remoteData
+  useEffect(refresh, [apiCall, account])
+
+  return [remoteData, refresh]
 }

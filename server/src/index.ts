@@ -1,5 +1,4 @@
 import express from 'express'
-import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
 import { pipe } from 'fp-ts/function'
 import { initDatabase } from './database/init'
@@ -19,8 +18,8 @@ const init = pipe(
     () => {
       express()
         .use(cors())
-        .use(bodyParser.json())
-        .use(bodyParser.urlencoded({ extended: true }))
+        .use(express.json())
+        .use(express.urlencoded({ extended: true }))
         .get('/', (_req, res) => res.end())
         .use('/users', userRouter())
         .use((_req, res) => res.status(404).end())

@@ -11,7 +11,11 @@ interface Profile {
   readonly _tag: 'Profile'
 }
 
-export type Location = Home | Profile
+interface Users {
+  readonly _tag: 'Users'
+}
+
+export type Location = Home | Profile | Users
 
 export function home(): Location {
   return {
@@ -22,6 +26,12 @@ export function home(): Location {
 export function profile(): Location {
   return {
     _tag: 'Profile'
+  }
+}
+
+export function users(): Location {
+  return {
+    _tag: 'Users'
   }
 }
 
@@ -37,10 +47,12 @@ export function foldLocation<T>(
 
 const homeMatch = end
 const profileMatch = lit('profile').then(end)
+const usersMatch = lit('users').then(end)
 
 const router = zero<Location>()
   .alt(homeMatch.parser.map(home))
   .alt(profileMatch.parser.map(profile))
+  .alt(usersMatch.parser.map(users))
 
 interface Props {
   render: Reader<Location, JSX.Element>
@@ -56,7 +68,8 @@ function formatLocation(location: Location): string {
       location,
       foldLocation({
         Home: () => homeMatch.formatter,
-        Profile: () => profileMatch.formatter
+        Profile: () => profileMatch.formatter,
+        Users: () => usersMatch.formatter
       })
     ),
     location

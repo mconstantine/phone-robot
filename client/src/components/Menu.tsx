@@ -1,5 +1,5 @@
 import { Layout, Menu as AntdMenu } from 'antd'
-import { home, profile, useRouter } from '../contexts/Router'
+import { home, profile, useRouter, users } from '../contexts/Router'
 import { MenuInfo } from 'rc-menu/lib/interface'
 
 export function Menu() {
@@ -12,6 +12,9 @@ export function Menu() {
         break
       case 'Profile':
         setLocation(profile())
+        break
+      case 'Users':
+        setLocation(users())
         break
       default:
         break
@@ -28,6 +31,7 @@ export function Menu() {
       >
         <AntdMenu.Item key={home()._tag}>Home</AntdMenu.Item>
         <AntdMenu.Item key={profile()._tag}>Profile</AntdMenu.Item>
+        <AntdMenu.Item key={users()._tag}>Unapproved users</AntdMenu.Item>
       </AntdMenu>
     </Layout.Header>
   )

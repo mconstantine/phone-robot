@@ -3,7 +3,7 @@ import { DateFromISOString, NonEmptyString } from 'io-ts-types'
 import { PositiveInteger } from '../../globalDomain'
 import { apiCall } from '../../useApi'
 
-const User = t.type({
+export const User = t.type({
   id: PositiveInteger,
   username: NonEmptyString,
   name: NonEmptyString,

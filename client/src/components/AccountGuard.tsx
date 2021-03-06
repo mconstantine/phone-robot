@@ -8,6 +8,7 @@ import { LoginPage } from './Login/LoginPage'
 
 const HomePage = lazy(() => import('./Home/HomePage'))
 const ProfilePage = lazy(() => import('./Profile/ProfilePage/ProfilePage'))
+const UsersPage = lazy(() => import('./Users/UsersPage'))
 
 export function AccountGuard() {
   const { account } = useAccount()
@@ -26,7 +27,8 @@ export function AccountGuard() {
             render={flow(
               foldLocation({
                 Home: () => <HomePage />,
-                Profile: () => <ProfilePage />
+                Profile: () => <ProfilePage />,
+                Users: () => <UsersPage />
               }),
               renderPage
             )}

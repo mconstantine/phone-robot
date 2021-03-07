@@ -1,8 +1,7 @@
-import { Button, Layout, Result, Timeline } from 'antd'
+import { Layout, Result, Timeline } from 'antd'
 import { either } from 'fp-ts'
 import { constNull, constVoid, pipe } from 'fp-ts/function'
-import { useCallback, useEffect, useReducer } from 'react'
-import { w3cwebsocket } from 'websocket'
+import { useEffect, useReducer } from 'react'
 import { foldAccount, useAccount } from '../../contexts/Account/Account'
 import { Message, Response } from './domain'
 import {
@@ -11,66 +10,35 @@ import {
   HomePageState
 } from './HomePageState'
 
-const client = new w3cwebsocket(process.env.REACT_APP_WS_URL!)
-
 export default function HomePage() {
   const { account } = useAccount()
   const [state, dispatch] = useReducer(homePageReducer, { type: 'Initial' })
 
-  const authorize = useCallback(
-    () =>
+  useEffect(() => {
+    const connection = new WebSocket(process.env.REACT_APP_WS_URL!)
+
+    connection.onopen = () =>
       pipe(
         account,
-        foldAccount(
-          // Will never happen, `LoginPage` is displayed when the account is anonymous
-          constVoid,
-          ({ accessToken }) =>
-            sendMessage({
-              type: 'Authorization',
-              from: 'UI',
-              accessToken
-            })
+        foldAccount(constVoid, account =>
+          sendMessage(connection, {
+            type: 'Authorization',
+            from: 'UI',
+            accessToken: account.accessToken
+          })
         )
-      ),
-    [account]
-  )
+      )
 
-  useEffect(() => {
-    client.onopen = authorize
-
-    if (client.readyState === client.OPEN) {
-      authorize()
-    }
-
-    return () => {
-      sendMessage({
-        type: 'Reset',
-        from: 'UI'
-      })
-    }
-  }, [authorize])
-
-  useEffect(() => {
-    client.onmessage = message => {
+    connection.onmessage = response =>
       pipe(
-        message.data,
-        data => either.tryCatch(() => JSON.parse(data.toString()), constVoid),
+        response.data,
+        data => either.tryCatch(() => JSON.parse(data), constVoid),
         either.chainW(Response.decode),
         either.fold(constVoid, dispatch)
       )
-    }
-  }, [])
 
-  useEffect(() => {
-    pipe(
-      state,
-      foldHomePageState(
-        constVoid,
-        () => console.log('TODO: wait for robot'),
-        constVoid
-      )
-    )
-  }, [state])
+    return () => connection.close()
+  }, [account])
 
   return (
     <Layout.Content>
@@ -84,7 +52,6 @@ export default function HomePage() {
               status="error"
               title="Connection refused"
               subTitle={reason}
-              extra={<Button onClick={authorize}>Retry</Button>}
             />
           )
         )
@@ -118,6 +85,6 @@ function HandshakeTimeline(props: HandshakeTimelineProps) {
   )
 }
 
-function sendMessage(message: Message) {
-  client.send(JSON.stringify(message))
+function sendMessage(connection: WebSocket, message: Message) {
+  connection.send(pipe(message, Message.encode, JSON.stringify))
 }

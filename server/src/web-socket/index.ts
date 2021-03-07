@@ -1,13 +1,23 @@
 import { either, option } from 'fp-ts'
 import { constVoid, flow, pipe } from 'fp-ts/function'
-import { Option } from 'fp-ts/Option'
 import { Server } from 'ws'
-import { foldActor, foldMessage, Message } from './domain'
-import { WebSocketClientHandler, WebSocketHandler } from './handler'
+import { AuthorizationMessage, foldActor, foldMessage, Message } from './domain'
+import { WebSocketClientHandler } from './handler'
 
 export function initWebSocket(server: Server) {
+  let clientHandler = new WebSocketClientHandler()
+
   server.on('connection', socket => {
-    let handler: Option<WebSocketHandler> = option.none
+    const authorizeClient = (message: AuthorizationMessage) => {
+      const authorize = clientHandler.authorize(socket, message)
+      authorize().then(
+        option.fold(constVoid, socket =>
+          socket.on('close', () => {
+            clientHandler.reset()
+          })
+        )
+      )
+    }
 
     socket.on(
       'message',
@@ -21,11 +31,7 @@ export function initWebSocket(server: Server) {
               pipe(
                 message.from,
                 foldActor(
-                  () => {
-                    const clientHandler = new WebSocketClientHandler(socket)
-                    handler = option.some(clientHandler)
-                    clientHandler.authorize(message)
-                  },
+                  () => authorizeClient(message),
                   () => console.log('TODO: authorize robot')
                 )
               ),
@@ -34,12 +40,5 @@ export function initWebSocket(server: Server) {
         )
       )
     )
-
-    socket.on('close', () => {
-      pipe(
-        handler,
-        option.fold(constVoid, handler => handler.reset())
-      )
-    })
   })
 }

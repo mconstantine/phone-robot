@@ -5,6 +5,9 @@ import { initDatabase } from './database/init'
 import { taskEither } from 'fp-ts'
 import { userRouter } from './user/userIndex'
 import cors from 'cors'
+import { Server } from 'ws'
+import http from 'http'
+import { initWebSocket } from './web-socket'
 
 dotenv.config()
 const port = process.env.SERVER_PORT!
@@ -16,16 +19,24 @@ const init = pipe(
       console.log(error.message)
     },
     () => {
-      express()
+      const app = express()
+
+      app
         .use(cors())
         .use(express.json())
         .use(express.urlencoded({ extended: true }))
         .get('/', (_req, res) => res.end())
         .use('/users', userRouter())
         .use((_req, res) => res.status(404).end())
-        .listen(port, () =>
-          console.log(`Server ready at http://localhost:${port}`)
-        )
+
+      const server = http.createServer(app)
+      const webSocketServer = new Server({ server })
+
+      initWebSocket(webSocketServer)
+
+      server.listen(port, () =>
+        console.log(`Server ready at http://localhost:${port}`)
+      )
     }
   )
 )

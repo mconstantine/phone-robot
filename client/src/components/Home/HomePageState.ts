@@ -10,11 +10,17 @@ interface AuthorizedState {
   type: 'Authorized'
 }
 
-export type HomePageState = InitialState | AuthorizedState
+interface RefusedState {
+  type: 'Refused'
+  reason: string
+}
+
+export type HomePageState = InitialState | AuthorizedState | RefusedState
 
 export function foldHomePageState<T>(
   whenInitial: IO<T>,
-  whenAuthorized: Reader<AuthorizedState, T>
+  whenAuthorized: Reader<AuthorizedState, T>,
+  whenResfused: Reader<RefusedState, T>
 ): Reader<HomePageState, T> {
   return state => {
     switch (state.type) {
@@ -22,6 +28,8 @@ export function foldHomePageState<T>(
         return whenInitial()
       case 'Authorized':
         return whenAuthorized(state)
+      case 'Refused':
+        return whenResfused(state)
     }
   }
 }
@@ -37,10 +45,24 @@ export function homePageReducer(
           return {
             type: 'Authorized'
           }
+        case 'Refused':
+          return {
+            type: 'Refused',
+            reason: response.reason
+          }
       }
     case 'Authorized':
       switch (response.type) {
         case 'Authorized':
+          return state
+        case 'Refused':
+          return state
+      }
+    case 'Refused':
+      switch (response.type) {
+        case 'Authorized':
+          return { type: 'Authorized' }
+        case 'Refused':
           return state
       }
   }

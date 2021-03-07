@@ -27,7 +27,7 @@ export function foldState<T>(
   }
 }
 
-export function reducer(state: State, message: Message): State {
+export function updateState(state: State, message: Message): State {
   switch (state.type) {
     case 'Idle':
       switch (message.type) {

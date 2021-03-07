@@ -33,5 +33,17 @@ const AuthorizedResponse = t.type(
 )
 type AuthorizedResponse = t.TypeOf<typeof AuthorizedResponse>
 
-export const Response = AuthorizedResponse
+const RefusedResponse = t.type(
+  {
+    type: t.literal('Refused'),
+    reason: t.string
+  },
+  'RefusedResponse'
+)
+type RefusedResponse = t.TypeOf<typeof RefusedResponse>
+
+export const Response = t.union(
+  [AuthorizedResponse, RefusedResponse],
+  'Response'
+)
 export type Response = t.TypeOf<typeof Response>

@@ -1,7 +1,7 @@
-import { Layout, Timeline } from 'antd'
+import { Button, Layout, Result, Timeline } from 'antd'
 import { either } from 'fp-ts'
-import { constVoid, pipe } from 'fp-ts/function'
-import { useEffect, useReducer } from 'react'
+import { constNull, constVoid, pipe } from 'fp-ts/function'
+import { useCallback, useEffect, useReducer } from 'react'
 import { w3cwebsocket } from 'websocket'
 import { foldAccount, useAccount } from '../../contexts/Account/Account'
 import { Message, Response } from './domain'
@@ -17,8 +17,8 @@ export default function HomePage() {
   const { account } = useAccount()
   const [state, dispatch] = useReducer(homePageReducer, { type: 'Initial' })
 
-  useEffect(() => {
-    const authorize = () =>
+  const authorize = useCallback(
+    () =>
       pipe(
         account,
         foldAccount(
@@ -31,8 +31,11 @@ export default function HomePage() {
               accessToken
             })
         )
-      )
+      ),
+    [account]
+  )
 
+  useEffect(() => {
     client.onopen = authorize
 
     if (client.readyState === client.OPEN) {
@@ -45,7 +48,7 @@ export default function HomePage() {
         from: 'UI'
       })
     }
-  }, [account])
+  }, [authorize])
 
   useEffect(() => {
     client.onmessage = message => {
@@ -61,7 +64,11 @@ export default function HomePage() {
   useEffect(() => {
     pipe(
       state,
-      foldHomePageState(constVoid, () => console.log('TODO: wait for robot'))
+      foldHomePageState(
+        constVoid,
+        () => console.log('TODO: wait for robot'),
+        constVoid
+      )
     )
   }, [state])
 
@@ -71,7 +78,15 @@ export default function HomePage() {
         state,
         foldHomePageState(
           () => <HandshakeTimeline state={state} />,
-          () => <HandshakeTimeline state={state} />
+          () => <HandshakeTimeline state={state} />,
+          ({ reason }) => (
+            <Result
+              status="error"
+              title="Connection refused"
+              subTitle={reason}
+              extra={<Button onClick={authorize}>Retry</Button>}
+            />
+          )
         )
       )}
     </Layout.Content>
@@ -97,7 +112,8 @@ function HandshakeTimeline(props: HandshakeTimelineProps) {
     props.state,
     foldHomePageState(
       () => createTimeline(0),
-      () => createTimeline(1)
+      () => createTimeline(1),
+      constNull
     )
   )
 }

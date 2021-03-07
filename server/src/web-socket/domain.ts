@@ -36,13 +36,7 @@ const AuthorizationMessage = t.type(
 )
 export type AuthorizationMessage = t.TypeOf<typeof AuthorizationMessage>
 
-const ResetMessage = t.type(
-  {
-    type: t.literal('Reset'),
-    from: Actor
-  },
-  'Reset'
-)
+const ResetMessage = t.type({ type: t.literal('Reset') }, 'Reset')
 export type ResetMessage = t.TypeOf<typeof ResetMessage>
 
 export const Message = t.union([AuthorizationMessage, ResetMessage], 'Message')

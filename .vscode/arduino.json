@@ -1,5 +1,5 @@
 {
-    "sketch": "app/app.ino",
+    "sketch": "controller/app/app.ino",
     "board": "arduino:samd:nano_33_iot",
     "programmer": "AVRISP mkII",
     "port": "/dev/cu.usbmodem22201"

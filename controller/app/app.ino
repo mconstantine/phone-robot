@@ -2,62 +2,58 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
 #include <ArduinoHttpClient.h>
-#include "./Config.h"
+#include "Config.h"
+#include "State/State.h"
+#include "State/State.cpp"
+#include "WiFiConnection/WiFiConnection.h"
+#include "WiFiConnection/WiFiConnection.cpp"
 
 int status = WL_IDLE_STATUS;
 int port = 80;
 
-int LED_1 = 14;
-int LED_2 = 15;
-int LED_3 = 18;
-int LED_4 = 20;
 int LED_SWITCH = 8;
 
-WiFiClient wifi;
-WebSocketClient client = WebSocketClient(wifi, ServerAddress, port);
+WiFiClient wifiClient = WiFiClient();
+WiFiConnection wifi = WiFiConnection(wifiClient);
+WebSocketClient client = WebSocketClient(wifiClient, ServerAddress);
+State state = State();
 
 void setup()
 {
   Serial.begin(9600);
-
-  pinMode(LED_1, OUTPUT);
-  pinMode(LED_2, OUTPUT);
-  pinMode(LED_3, OUTPUT);
-  pinMode(LED_4, OUTPUT);
   pinMode(LED_SWITCH, INPUT);
-
-  connectWiFi();
 }
 
 void loop()
 {
-  int isThingOn = digitalRead(LED_SWITCH);
-
-  digitalWrite(LED_1, isThingOn);
-  digitalWrite(LED_2, isThingOn);
-  digitalWrite(LED_3, isThingOn);
-  digitalWrite(LED_4, isThingOn);
-}
-
-void connectWiFi()
-{
-  while (status != WL_CONNECTED)
+  if (!digitalRead(LED_SWITCH))
   {
-    Serial.print("Attempting to connect to Wi-Fi network: ");
-    Serial.println(WiFiSSID);
+    state.update(INITIAL);
+    wifi.disconnect();
+    return;
+  }
 
-    status = WiFi.begin(WiFiSSID, WiFiPassword);
-
-    if (status != WL_CONNECTED)
+  switch (state.getCurrent())
+  {
+  case INITIAL:
+    if (wifi.connect())
     {
-      Serial.print("Failed. Reason code: ");
-      Serial.println(WiFi.reasonCode());
+      state.update(CONNECTED_TO_INTERNET);
     }
     else
     {
-      Serial.println("Connected.");
+      delay(10000);
     }
 
-    delay(10000);
+    break;
+  case CONNECTED_TO_INTERNET:
+    // TODO: connect to WebSocket
+    break;
+  case CONNECTED_TO_SOCKET:
+    // TODO: wait for application
+    break;
+  case READY:
+    // TODO: listen for commands
+    break;
   }
 }

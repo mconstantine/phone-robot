@@ -8,15 +8,16 @@ void State::showState()
   switch (this->stateType)
   {
   case INITIAL:
-    break;
-  case CONNECTED_TO_INTERNET:
     highLedsCount = 1;
     break;
-  case CONNECTED_TO_SOCKET:
+  case CONNECTED:
     highLedsCount = 2;
     break;
-  case READY:
+  case AUTHORIZED:
     highLedsCount = 3;
+    break;
+  case READY:
+    highLedsCount = 4;
     break;
   }
 
@@ -47,38 +48,37 @@ StateType State::update(StateType newStateType)
     {
     case INITIAL:
       break;
-    case CONNECTED_TO_INTERNET:
-      newState = CONNECTED_TO_INTERNET;
+    case CONNECTED:
+      newState = CONNECTED;
       break;
-    case CONNECTED_TO_SOCKET:
+    case AUTHORIZED:
       break;
     case READY:
       break;
     }
-  case CONNECTED_TO_INTERNET:
+  case CONNECTED:
     switch (newStateType)
     {
     case INITIAL:
       newState = INITIAL;
       break;
-    case CONNECTED_TO_INTERNET:
+    case CONNECTED:
       break;
-    case CONNECTED_TO_SOCKET:
-      newState = CONNECTED_TO_SOCKET;
+    case AUTHORIZED:
+      newState = AUTHORIZED;
       break;
     case READY:
       break;
     }
-  case CONNECTED_TO_SOCKET:
+  case AUTHORIZED:
     switch (newStateType)
     {
     case INITIAL:
       newState = INITIAL;
       break;
-    case CONNECTED_TO_INTERNET:
-      newState = CONNECTED_TO_INTERNET;
+    case CONNECTED:
       break;
-    case CONNECTED_TO_SOCKET:
+    case AUTHORIZED:
       break;
     case READY:
       newState = READY;
@@ -90,11 +90,9 @@ StateType State::update(StateType newStateType)
     case INITIAL:
       newState = INITIAL;
       break;
-    case CONNECTED_TO_INTERNET:
-      newState = CONNECTED_TO_INTERNET;
+    case CONNECTED:
       break;
-    case CONNECTED_TO_SOCKET:
-      newState = CONNECTED_TO_SOCKET;
+    case AUTHORIZED:
       break;
     case READY:
       break;

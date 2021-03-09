@@ -9,9 +9,9 @@ int LED_4 = PIN_A6;
 enum StateType
 {
   INITIAL,
-  CONNECTED_TO_INTERNET,
-  CONNECTED_TO_SOCKET,
-  READY
+  CONNECTED,
+  AUTHORIZED,
+  READY,
 };
 
 class State
@@ -37,6 +37,7 @@ State::State()
 
   this->stateType = INITIAL;
   this->previousStateType = INITIAL;
+  this->showState();
 }
 
 StateType State::getCurrent()

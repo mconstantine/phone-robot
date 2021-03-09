@@ -5,17 +5,15 @@
 #include "Config.h"
 #include "State/State.h"
 #include "State/State.cpp"
-#include "WiFiConnection/WiFiConnection.h"
-#include "WiFiConnection/WiFiConnection.cpp"
+#include "Connection/Connection.h"
+#include "Connection/Connection.cpp"
 
 int status = WL_IDLE_STATUS;
 int port = 80;
 
 int LED_SWITCH = 8;
 
-WiFiClient wifiClient = WiFiClient();
-WiFiConnection wifi = WiFiConnection(wifiClient);
-WebSocketClient client = WebSocketClient(wifiClient, ServerAddress);
+Connection connection = Connection();
 State state = State();
 
 void setup()
@@ -29,16 +27,16 @@ void loop()
   if (!digitalRead(LED_SWITCH))
   {
     state.update(INITIAL);
-    wifi.disconnect();
+    connection.disconnect();
     return;
   }
 
   switch (state.getCurrent())
   {
   case INITIAL:
-    if (wifi.connect())
+    if (connection.connect())
     {
-      state.update(CONNECTED_TO_INTERNET);
+      state.update(CONNECTED);
     }
     else
     {
@@ -46,10 +44,7 @@ void loop()
     }
 
     break;
-  case CONNECTED_TO_INTERNET:
-    // TODO: connect to WebSocket
-    break;
-  case CONNECTED_TO_SOCKET:
+  case AUTHORIZED:
     // TODO: wait for application
     break;
   case READY:

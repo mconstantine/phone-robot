@@ -7,16 +7,17 @@ void State::showState()
 
   switch (this->stateType)
   {
-  case INITIAL:
+  case STATE_INITIAL:
     highLedsCount = 1;
     break;
-  case CONNECTED:
+  case STATE_CONNECTED:
+  case STATE_WAITING_FOR_AUTHORIZATION:
     highLedsCount = 2;
     break;
-  case AUTHORIZED:
+  case STATE_AUTHORIZED:
     highLedsCount = 3;
     break;
-  case READY:
+  case STATE_READY:
     highLedsCount = 4;
     break;
   }
@@ -43,58 +44,70 @@ StateType State::update(StateType newStateType)
 
   switch (this->stateType)
   {
-  case INITIAL:
+  case STATE_INITIAL:
     switch (newStateType)
     {
-    case INITIAL:
+    case STATE_CONNECTED:
+      newState = STATE_CONNECTED;
       break;
-    case CONNECTED:
-      newState = CONNECTED;
-      break;
-    case AUTHORIZED:
-      break;
-    case READY:
+    case STATE_INITIAL:
+    case STATE_WAITING_FOR_AUTHORIZATION:
+    case STATE_AUTHORIZED:
+    case STATE_READY:
       break;
     }
-  case CONNECTED:
+  case STATE_CONNECTED:
     switch (newStateType)
     {
-    case INITIAL:
-      newState = INITIAL;
+    case STATE_INITIAL:
+      newState = STATE_INITIAL;
       break;
-    case CONNECTED:
+    case STATE_WAITING_FOR_AUTHORIZATION:
+      newState = STATE_WAITING_FOR_AUTHORIZATION;
       break;
-    case AUTHORIZED:
-      newState = AUTHORIZED;
-      break;
-    case READY:
+    case STATE_AUTHORIZED:
+    case STATE_CONNECTED:
+    case STATE_READY:
       break;
     }
-  case AUTHORIZED:
+  case STATE_WAITING_FOR_AUTHORIZATION:
     switch (newStateType)
     {
-    case INITIAL:
-      newState = INITIAL;
+    case STATE_INITIAL:
+      newState = STATE_INITIAL;
       break;
-    case CONNECTED:
+    case STATE_AUTHORIZED:
+      newState = STATE_AUTHORIZED;
       break;
-    case AUTHORIZED:
-      break;
-    case READY:
-      newState = READY;
+    case STATE_WAITING_FOR_AUTHORIZATION:
+    case STATE_CONNECTED:
+    case STATE_READY:
       break;
     }
-  case READY:
+  case STATE_AUTHORIZED:
     switch (newStateType)
     {
-    case INITIAL:
-      newState = INITIAL;
+    case STATE_INITIAL:
+      newState = STATE_INITIAL;
       break;
-    case CONNECTED:
+    case STATE_READY:
+      newState = STATE_READY;
       break;
-    case AUTHORIZED:
+    case STATE_CONNECTED:
+    case STATE_WAITING_FOR_AUTHORIZATION:
+    case STATE_AUTHORIZED:
       break;
-    case READY:
+    }
+  case STATE_READY:
+    switch (newStateType)
+    {
+    case STATE_INITIAL:
+      newState = STATE_INITIAL;
+      break;
+    case STATE_CONNECTED:
+    case STATE_WAITING_FOR_AUTHORIZATION:
+    case STATE_AUTHORIZED:
+    case STATE_READY:
       break;
     }
   }

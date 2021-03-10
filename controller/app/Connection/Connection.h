@@ -5,6 +5,7 @@
 #include <WiFiNINA.h>
 #include <ArduinoHttpClient.h>
 #include "../Config.h"
+#include "../Message/Message.h"
 
 class Connection
 {
@@ -16,8 +17,10 @@ private:
 
 public:
   Connection();
-  boolean connect();
+  bool connect();
   void disconnect();
+  template <size_t Capacity>
+  bool sendMessage(Message<Capacity> message);
 };
 
 Connection::Connection()

@@ -8,10 +8,11 @@ int LED_4 = PIN_A6;
 
 enum StateType
 {
-  INITIAL,
-  CONNECTED,
-  AUTHORIZED,
-  READY,
+  STATE_INITIAL,
+  STATE_CONNECTED,
+  STATE_WAITING_FOR_AUTHORIZATION,
+  STATE_AUTHORIZED,
+  STATE_READY,
 };
 
 class State
@@ -35,8 +36,8 @@ State::State()
   pinMode(LED_3, OUTPUT);
   pinMode(LED_4, OUTPUT);
 
-  this->stateType = INITIAL;
-  this->previousStateType = INITIAL;
+  this->stateType = STATE_INITIAL;
+  this->previousStateType = STATE_INITIAL;
   this->showState();
 }
 

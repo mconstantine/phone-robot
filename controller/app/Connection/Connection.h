@@ -3,24 +3,28 @@
 
 #include <SPI.h>
 #include <WiFiNINA.h>
-#include <ArduinoHttpClient.h>
 #include "../Config.h"
 #include "../Message/Message.h"
+
+enum TriState
+{
+  TRI_STATE_OK,
+  TRI_STATE_ERROR,
+  TRI_STATE_RETRY,
+};
 
 class Connection
 {
 private:
   WiFiClient wifi = WiFiClient();
-  WebSocketClient client = WebSocketClient(this->wifi, ServerAddress, ServerPort);
   int wifiStatus;
-  boolean serverStatus;
 
 public:
   Connection();
   bool connect();
   void disconnect();
-  template <size_t Capacity>
-  bool sendMessage(Message<Capacity> message);
+  bool sendMessage(Message message);
+  TriState isAuthorized();
 };
 
 Connection::Connection()

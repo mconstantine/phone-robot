@@ -1,7 +1,5 @@
 #include <Arduino.h>
-#include "State/State.h"
 #include "State/State.cpp"
-#include "Connection/Connection.h"
 #include "Connection/Connection.cpp"
 #include "Message/Message.cpp"
 
@@ -9,6 +7,7 @@ int LED_SWITCH = 8;
 
 Connection connection = Connection();
 State state = State();
+bool isError = false;
 
 void setup()
 {
@@ -20,8 +19,14 @@ void loop()
 {
   if (!digitalRead(LED_SWITCH))
   {
+    isError = false;
     state.update(STATE_INITIAL);
     connection.disconnect();
+    return;
+  }
+
+  if (isError)
+  {
     return;
   }
 
@@ -49,7 +54,19 @@ void loop()
     }
     break;
   case STATE_WAITING_FOR_AUTHORIZATION:
-    // TODO: listen for "Authorized" or "Refused" responses
+    switch (connection.isAuthorized())
+    {
+    case TRI_STATE_OK:
+      state.update(STATE_AUTHORIZED);
+      break;
+    case TRI_STATE_ERROR:
+      isError = true;
+      break;
+    case TRI_STATE_RETRY:
+      delay(1000);
+      break;
+    }
+
     break;
   case STATE_AUTHORIZED:
     // TODO: wait for application

@@ -2,7 +2,7 @@
 #define MESSAGE_H
 
 #include "../Config.h"
-#include <ArduinoJson.h>
+#include <Arduino_JSON.h>
 
 using namespace arduino;
 
@@ -13,40 +13,63 @@ enum MessageType
 
 enum ResponseType
 {
-  RESP_AUTHORIZED,
-  RESP_REFUSED
+  RESP_AUTHORIZATION
 };
 
-template <size_t Capacity>
 class Message
 {
 protected:
   MessageType type;
-  StaticJsonDocument<Capacity> document;
 
 public:
   MessageType getType();
   arduino::String getMessage();
 };
 
-template <size_t Capacity>
-MessageType Message<Capacity>::getType()
+MessageType Message::getType()
 {
   return this->type;
 };
 
-template <size_t Capacity>
-arduino::String Message<Capacity>::getMessage()
-{
-  String output = "";
-  serializeJson(this->document, output);
-  return output;
-};
-
-class AuthorizationMessage : public Message<JSON_OBJECT_SIZE(3)>
+class AuthorizationMessage : public Message
 {
 public:
   AuthorizationMessage();
+  arduino::String getMessage();
+};
+
+template <typename ResultMessage>
+class Response
+{
+protected:
+  ResponseType type;
+  ResultMessage decodedMessage;
+
+public:
+  ResponseType getType();
+  bool isValid(arduino::String message);
+  ResultMessage getDecodedMessage();
+};
+
+template <typename ResultMessage>
+ResultMessage Response<ResultMessage>::getDecodedMessage()
+{
+  return this->decodedMessage;
+}
+
+struct AuthorizationResponseStruct
+{
+  arduino::String result;
+};
+
+class AuthorizationResponse : public Response<AuthorizationResponseStruct>
+{
+public:
+  const arduino::String RESULT_AUTHORIZED = "Authorized";
+  const arduino::String RESULT_REFUSED = "Refused";
+
+  AuthorizationResponse();
+  bool isValid(arduino::String message);
 };
 
 #endif

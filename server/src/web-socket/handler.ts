@@ -1,4 +1,4 @@
-import { option, task, taskEither } from 'fp-ts'
+import { boolean, option, task, taskEither } from 'fp-ts'
 import { constVoid, pipe } from 'fp-ts/function'
 import { Option } from 'fp-ts/Option'
 import WebSocket from 'ws'
@@ -29,6 +29,7 @@ export abstract class WebSocketHandler {
     socket: WebSocket,
     message: Message
   ): Task<Option<WebSocket>>
+
   public abstract reset(): void
 }
 
@@ -74,7 +75,56 @@ export class WebSocketClientHandler extends WebSocketHandler {
   }
 
   reset() {
-    this.updateState({ type: 'Reset' })
+    this.updateState({ type: 'Reset', from: 'UI' })
+
+    pipe(
+      this.socket,
+      option.fold(constVoid, socket => {
+        socket.close()
+        this.socket = option.none
+      })
+    )
+  }
+}
+
+export class WebSocketRobotHandler extends WebSocketHandler {
+  authorize(socket: WebSocket, message: AuthorizationMessage) {
+    const authorize = () =>
+      pipe(
+        message.accessToken === process.env.ROBOT_SECRET,
+        boolean.fold(
+          () => task.fromIO(() => option.none),
+          () =>
+            task.fromIO(() => {
+              this.socket = option.some(socket)
+              this.sendResponse({ type: 'Authorized' })
+              this.updateState(message)
+              return this.socket
+            })
+        )
+      )
+
+    const refuse = () =>
+      task.fromIO(() => {
+        socket.send(
+          pipe(
+            {
+              type: 'Refused',
+              reason: 'Someone else is already connected'
+            },
+            Response.encode,
+            JSON.stringify
+          )
+        )
+
+        return option.none
+      })
+
+    return pipe(this.socket, option.fold(authorize, refuse))
+  }
+
+  reset() {
+    this.updateState({ type: 'Reset', from: 'Robot' })
 
     pipe(
       this.socket,

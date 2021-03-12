@@ -121,5 +121,5 @@ StateType State::update(StateType newStateType)
 
 boolean State::didChange()
 {
-  return this->stateType == this->previousStateType;
+  return this->stateType != this->previousStateType;
 }

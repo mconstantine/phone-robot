@@ -36,7 +36,13 @@ const AuthorizationMessage = t.type(
 )
 export type AuthorizationMessage = t.TypeOf<typeof AuthorizationMessage>
 
-const ResetMessage = t.type({ type: t.literal('Reset') }, 'Reset')
+const ResetMessage = t.type(
+  {
+    type: t.literal('Reset'),
+    from: Actor
+  },
+  'Reset'
+)
 export type ResetMessage = t.TypeOf<typeof ResetMessage>
 
 export const Message = t.union([AuthorizationMessage, ResetMessage], 'Message')
@@ -44,14 +50,14 @@ export type Message = t.TypeOf<typeof Message>
 
 export function foldMessage<T>(
   whenAuthorization: Reader<AuthorizationMessage, T>,
-  whenReset: IO<T>
+  whenReset: Reader<ResetMessage, T>
 ): Reader<Message, T> {
   return message => {
     switch (message.type) {
       case 'Authorization':
         return whenAuthorization(message)
       case 'Reset':
-        return whenReset()
+        return whenReset(message)
     }
   }
 }

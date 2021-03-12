@@ -2,26 +2,33 @@
 
 AuthorizationMessage::AuthorizationMessage()
 {
-  this->type = MSG_AUTHORIZATION;
-}
-
-arduino::String AuthorizationMessage::getMessage()
-{
   JSONVar document;
 
   document["type"] = "Authorization";
   document["from"] = "Robot";
   document["accessToken"] = Secret;
 
-  return JSON.stringify(document);
+  this->type = MSG_AUTHORIZATION;
+  this->message = JSON.stringify(document);
 }
+
+ResetMessage::ResetMessage()
+{
+  JSONVar document;
+
+  document["type"] = "Reset";
+  document["from"] = "Robot";
+
+  this->type = MSG_RESET;
+  this->message = JSON.stringify(document);
+};
 
 AuthorizationResponse::AuthorizationResponse()
 {
   this->type = RESP_AUTHORIZATION;
 }
 
-bool AuthorizationResponse::isValid(arduino::String message)
+bool AuthorizationResponse::isValid(String message)
 {
   JSONVar document = JSON.parse(message);
 

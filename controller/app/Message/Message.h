@@ -1,14 +1,14 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
-#include "../Config.h"
 #include <Arduino_JSON.h>
 
-using namespace arduino;
+using namespace websockets2_generic;
 
-enum MessageType
+enum MsgType
 {
-  MSG_AUTHORIZATION
+  MSG_AUTHORIZATION,
+  MSG_RESET,
 };
 
 enum ResponseType
@@ -19,23 +19,34 @@ enum ResponseType
 class Message
 {
 protected:
-  MessageType type;
+  MsgType type;
+  String message;
 
 public:
-  MessageType getType();
-  arduino::String getMessage();
+  MsgType getType();
+  String getMessage();
 };
 
-MessageType Message::getType()
+MsgType Message::getType()
 {
   return this->type;
+};
+
+String Message::getMessage()
+{
+  return this->message;
 };
 
 class AuthorizationMessage : public Message
 {
 public:
   AuthorizationMessage();
-  arduino::String getMessage();
+};
+
+class ResetMessage : public Message
+{
+public:
+  ResetMessage();
 };
 
 template <typename ResultMessage>
@@ -47,7 +58,7 @@ protected:
 
 public:
   ResponseType getType();
-  bool isValid(arduino::String message);
+  bool isValid(String message);
   ResultMessage getDecodedMessage();
 };
 
@@ -59,17 +70,17 @@ ResultMessage Response<ResultMessage>::getDecodedMessage()
 
 struct AuthorizationResponseStruct
 {
-  arduino::String result;
+  String result;
 };
 
 class AuthorizationResponse : public Response<AuthorizationResponseStruct>
 {
 public:
-  const arduino::String RESULT_AUTHORIZED = "Authorized";
-  const arduino::String RESULT_REFUSED = "Refused";
+  const String RESULT_AUTHORIZED = "Authorized";
+  const String RESULT_REFUSED = "Refused";
 
   AuthorizationResponse();
-  bool isValid(arduino::String message);
+  bool isValid(String message);
 };
 
 #endif

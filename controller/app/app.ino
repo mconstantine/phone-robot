@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "Config.h"
 #include "State/State.cpp"
 #include "Connection/Connection.cpp"
 #include "Message/Message.cpp"
@@ -11,7 +12,7 @@ bool isError = false;
 
 void setup()
 {
-  Serial.begin(9600);
+  SerialUSB.begin(9600);
   pinMode(LED_SWITCH, INPUT);
 }
 
@@ -19,9 +20,15 @@ void loop()
 {
   if (!digitalRead(LED_SWITCH))
   {
-    isError = false;
+    if (!state.didChange())
+    {
+      return;
+    }
+
     state.update(STATE_INITIAL);
+    isError = false;
     connection.disconnect();
+
     return;
   }
 
@@ -29,6 +36,8 @@ void loop()
   {
     return;
   }
+
+  connection.poll();
 
   switch (state.getCurrent())
   {

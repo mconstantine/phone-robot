@@ -1,10 +1,12 @@
 #ifndef CONNECTION_H
 #define CONNECTION_H
 
-#include <SPI.h>
-#include <WiFiNINA.h>
+#include "defines.h"
+#include <WebSockets2_Generic.h>
 #include "../Config.h"
 #include "../Message/Message.h"
+
+using namespace websockets2_generic;
 
 enum TriState
 {
@@ -17,7 +19,7 @@ class Connection
 {
 private:
   WiFiClient wifi = WiFiClient();
-  int wifiStatus;
+  WebsocketsClient client;
 
 public:
   Connection();
@@ -25,11 +27,9 @@ public:
   void disconnect();
   bool sendMessage(Message message);
   TriState isAuthorized();
+  void poll();
 };
 
-Connection::Connection()
-{
-  this->wifiStatus = WL_IDLE_STATUS;
-}
+Connection::Connection() {}
 
 #endif

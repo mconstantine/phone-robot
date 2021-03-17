@@ -47,6 +47,8 @@ export class WebSocketClientHandler extends WebSocketHandler {
             this.socket = option.some(socket)
             this.sendResponse({ type: 'Authorized' })
             this.updateState(message)
+            socket.on('close', () => this.reset())
+
             return this.socket
           })
         ),
@@ -88,6 +90,10 @@ export class WebSocketClientHandler extends WebSocketHandler {
 }
 
 export class WebSocketRobotHandler extends WebSocketHandler {
+  private isRobotAlive: boolean = false
+  private pingInterval: Option<NodeJS.Timeout> = option.none
+  private pingTimeout: Option<NodeJS.Timeout> = option.none
+
   authorize(socket: WebSocket, message: AuthorizationMessage) {
     const authorize = () =>
       pipe(
@@ -99,6 +105,9 @@ export class WebSocketRobotHandler extends WebSocketHandler {
               this.socket = option.some(socket)
               this.sendResponse({ type: 'Authorized' })
               this.updateState(message)
+              this.startPinging()
+              socket.on('close', () => this.reset())
+
               return this.socket
             })
         )
@@ -125,6 +134,8 @@ export class WebSocketRobotHandler extends WebSocketHandler {
 
   reset() {
     this.updateState({ type: 'Reset', from: 'Robot' })
+    pipe(this.pingInterval, option.fold(constVoid, clearInterval))
+    pipe(this.pingTimeout, option.fold(constVoid, clearTimeout))
 
     pipe(
       this.socket,
@@ -132,6 +143,55 @@ export class WebSocketRobotHandler extends WebSocketHandler {
         socket.close()
         this.socket = option.none
       })
+    )
+  }
+
+  private startPinging() {
+    pipe(
+      this.socket,
+      option.fold(
+        () => console.error('Trying to start pinging without a socket'),
+        socket => {
+          socket.on('pong', () => {
+            this.isRobotAlive = true
+          })
+
+          this.pingInterval = option.some(
+            setInterval(() => this.pingRobot(), 30000)
+          )
+        }
+      )
+    )
+  }
+
+  private pingRobot() {
+    pipe(
+      this.socket,
+      option.fold(
+        () => console.error('Trying to ping without a socket'),
+        socket => {
+          this.isRobotAlive = false
+          socket.ping()
+
+          this.pingTimeout = option.some(
+            setTimeout(() => this.checkRobot(), 10000)
+          )
+        }
+      )
+    )
+  }
+
+  private checkRobot() {
+    pipe(
+      this.socket,
+      option.fold(
+        () => console.error('Trying to check robot without a socket'),
+        socket => {
+          if (!this.isRobotAlive) {
+            socket.close()
+          }
+        }
+      )
     )
   }
 }

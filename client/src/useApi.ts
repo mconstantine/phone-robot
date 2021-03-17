@@ -1,14 +1,15 @@
 import { array, either, option, record, taskEither } from 'fp-ts'
-import { pipe } from 'fp-ts/function'
+import { flow, pipe } from 'fp-ts/function'
 import { IO } from 'fp-ts/IO'
 import { Option } from 'fp-ts/Option'
 import { Reader } from 'fp-ts/Reader'
 import { ReaderTaskEither } from 'fp-ts/ReaderTaskEither'
 import { TaskEither } from 'fp-ts/TaskEither'
 import * as t from 'io-ts'
-import { useEffect, useState } from 'react'
+import { DateFromISOString, NonEmptyString } from 'io-ts-types'
+import { useEffect, useMemo, useState } from 'react'
 import { foldAccount, useAccount } from './contexts/Account/Account'
-import { AccountState } from './contexts/Account/AccountState'
+import { AccountAction, AccountState } from './contexts/Account/AccountState'
 
 const ErrorCode = t.keyof(
   {
@@ -24,6 +25,13 @@ const ErrorCode = t.keyof(
   'ErrorCode'
 )
 type ErrorCode = t.TypeOf<typeof ErrorCode>
+
+const RefreshTokenOutput = t.type({
+  accessToken: NonEmptyString,
+  refreshToken: NonEmptyString,
+  expiration: DateFromISOString
+})
+type RefreshTokenOutput = t.TypeOf<typeof RefreshTokenOutput>
 
 const ApiError = t.type({
   code: ErrorCode,
@@ -90,68 +98,165 @@ function decodeResponse<O, OO>(
   )
 }
 
-function request<O, OO>(
+function useRequest<O, OO>(
   url: string,
   method: 'GET' | 'DELETE',
-  outputCodec: t.Type<O, OO>,
-  account: AccountState
-): TaskEither<ApiError, O>
-function request<I, II, O, OO>(
+  outputCodec: t.Type<O, OO>
+): ReaderTaskEither<void, ApiError, O>
+function useRequest<I, II, O, OO>(
   url: string,
   method: 'POST' | 'PATCH',
   outputCodec: t.Type<O, OO>,
-  account: AccountState,
-  body: I,
   inputCodec: t.Type<I, II>
-): TaskEither<ApiError, O>
-function request<I, II, O, OO>(
+): ReaderTaskEither<I, ApiError, O>
+function useRequest<I, II, O, OO>(
   url: string,
   method: 'GET' | 'DELETE' | 'POST' | 'PATCH',
   outputCodec: t.Type<O, OO>,
-  account: AccountState,
-  body?: I,
   inputCodec?: t.Type<I, II>
-): TaskEither<ApiError, O> {
-  const genericError =
-    'An unexpected error occurred during a network request. Please try again'
+): ReaderTaskEither<I | void, ApiError, O> {
+  const { account, dispatchAccountAction } = useAccount()
 
-  const headers = pipe(
-    account,
-    foldAccount(
-      () => ({ 'Content-Type': 'application/json' }),
-      account => ({
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${account.accessToken}`
-      })
-    )
-  )
+  const request = useMemo(() => {
+    const genericError =
+      'An unexpected error occurred during a network request. Please try again'
 
-  return pipe(
-    taskEither.tryCatch(
-      () =>
-        window.fetch(process.env.REACT_APP_API_URL + url, {
-          method,
-          headers,
-          body:
-            body && inputCodec
-              ? JSON.stringify(inputCodec.encode(body))
-              : undefined
-        }),
-      (): ApiError => ({
-        code: 'UNKNOWN',
-        message: genericError
-      })
-    ),
-    taskEither.chain(response =>
-      taskEither.tryCatch(
-        () => response.json(),
-        (): ApiError => ({
-          code: 'DECODING',
-          message: genericError
+    const headers = pipe(
+      account,
+      foldAccount(
+        () => ({ 'Content-Type': 'application/json' }),
+        account => ({
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${account.accessToken}`
         })
       )
-    ),
-    taskEither.chain(response => decodeResponse(response, outputCodec))
+    )
+
+    const doRequest = (body: I | void) =>
+      pipe(
+        taskEither.tryCatch(
+          () =>
+            window.fetch(process.env.REACT_APP_API_URL + url, {
+              method,
+              headers,
+              body:
+                body && inputCodec
+                  ? JSON.stringify(inputCodec.encode(body))
+                  : undefined
+            }),
+          (): ApiError => ({
+            code: 'UNKNOWN',
+            message: genericError
+          })
+        ),
+        taskEither.chain(response =>
+          taskEither.tryCatch(
+            () => response.json(),
+            (): ApiError => ({
+              code: 'DECODING',
+              message: genericError
+            })
+          )
+        )
+      )
+
+    return (body: I | void) =>
+      pipe(
+        doRequest(body),
+        taskEither.chain(response =>
+          pipe(
+            response,
+            ApiError.decode,
+            either.fold(
+              () => taskEither.right(response),
+              error =>
+                pipe(
+                  error,
+                  foldPartialApiError(
+                    {
+                      FORBIDDEN: () =>
+                        pipe(
+                          refreshToken(account, dispatchAccountAction),
+                          // taskEither.chain(() => doRequest(body)),
+                          taskEither.mapLeft(() => error),
+                          taskEither.chain(() => taskEither.left(error)) //
+                        )
+                    },
+                    taskEither.left(error)
+                  )
+                )
+            )
+          )
+        ),
+        taskEither.chain(response => decodeResponse(response, outputCodec))
+      )
+  }, [account, dispatchAccountAction, inputCodec, method, outputCodec, url])
+
+  return request
+}
+
+function refreshToken(
+  account: AccountState,
+  dispatchAccountAction: Reader<AccountAction, void>
+): TaskEither<ApiError, void> {
+  return pipe(
+    account,
+    foldAccount(
+      () =>
+        taskEither.left<ApiError>({
+          code: 'FORBIDDEN',
+          message: 'Unable to refresh the token of an anonymous account'
+        }),
+      account =>
+        pipe(
+          taskEither.tryCatch(
+            () =>
+              window.fetch(
+                process.env.REACT_APP_API_URL + '/users/refreshToken',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ refreshToken: account.refreshToken })
+                }
+              ),
+            (): ApiError => ({
+              code: 'UNKNOWN',
+              message: 'Unable to fetch to refresh the token'
+            })
+          ),
+          taskEither.chain(response =>
+            taskEither.tryCatch(
+              () => response.json(),
+              (): ApiError => ({
+                code: 'DECODING',
+                message: 'Unable to parse refreshToken response to JSON'
+              })
+            )
+          ),
+          taskEither.chain(
+            flow(
+              RefreshTokenOutput.decode,
+              either.mapLeft(
+                (): ApiError => ({
+                  code: 'DECODING',
+                  message: 'Unable to decode refreshTokenResponse'
+                })
+              ),
+              taskEither.fromEither
+            )
+          ),
+          taskEither.chain(account =>
+            taskEither.fromIO(() =>
+              dispatchAccountAction({
+                type: 'RefreshToken',
+                ...account
+              })
+            )
+          )
+        )
+    )
   )
 }
 
@@ -190,40 +295,35 @@ export function apiCall<I, II, O, OO>(
 export function usePost<I, II, O, OO>(
   apiCall: ApiCall<I, II, O, OO>
 ): ReaderTaskEither<I, ApiError, O> {
-  const { account } = useAccount()
+  const request = useRequest(
+    apiCall.url,
+    'POST',
+    apiCall.outputCodec,
+    apiCall.inputCodec
+  )
 
-  return input =>
-    request(
-      apiCall.url,
-      'POST',
-      apiCall.outputCodec,
-      account,
-      input,
-      apiCall.inputCodec
-    )
+  return request
 }
 
 export function usePatch<I, II, O, OO>(
   apiCall: ApiCall<I, II, O, OO>
 ): ReaderTaskEither<I, ApiError, O> {
-  const { account } = useAccount()
+  const request = useRequest(
+    apiCall.url,
+    'PATCH',
+    apiCall.outputCodec,
+    apiCall.inputCodec
+  )
 
-  return input =>
-    request(
-      apiCall.url,
-      'PATCH',
-      apiCall.outputCodec,
-      account,
-      input,
-      apiCall.inputCodec
-    )
+  return request
 }
 
 export function useDelete<O, OO>(
   apiCall: ApiCallNoBody<O, OO>
 ): ReaderTaskEither<void, ApiError, O> {
-  const { account } = useAccount()
-  return () => request(apiCall.url, 'DELETE', apiCall.outputCodec, account)
+  const request = useRequest(apiCall.url, 'DELETE', apiCall.outputCodec)
+
+  return request
 }
 
 interface LoadingRemoteData {
@@ -262,7 +362,7 @@ export function foldRemoteData<O, T>(
 export function useGet<O, OO>(
   apiCall: ApiCallNoBody<O, OO>
 ): [RemoteData<O>, IO<void>] {
-  const { account } = useAccount()
+  const request = useRequest(apiCall.url, 'GET', apiCall.outputCodec)
 
   const [remoteData, setRemoteData] = useState<RemoteData<O>>({
     type: 'Loading'
@@ -272,7 +372,7 @@ export function useGet<O, OO>(
     setRemoteData({ type: 'Loading' })
 
     const doRequest = pipe(
-      request(apiCall.url, 'GET', apiCall.outputCodec, account),
+      request(),
       taskEither.bimap(
         error =>
           setRemoteData({
@@ -290,7 +390,7 @@ export function useGet<O, OO>(
     doRequest()
   }
 
-  useEffect(refresh, [apiCall, account])
+  useEffect(refresh, [apiCall, request])
 
   return [remoteData, refresh]
 }

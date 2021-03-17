@@ -2,7 +2,7 @@
 
 void State::showState()
 {
-  int leds[] = {LED_1, LED_2, LED_3, LED_4};
+  int leds[] = {LED_1, LED_2, LED_3, LED_4, LED_5};
   int highLedsCount = 0;
 
   switch (this->stateType)
@@ -18,7 +18,7 @@ void State::showState()
     highLedsCount = 3;
     break;
   case STATE_READY:
-    highLedsCount = 4;
+    highLedsCount = 5;
     break;
   }
 
@@ -27,7 +27,7 @@ void State::showState()
     digitalWrite(leds[i], HIGH);
   }
 
-  for (int i = highLedsCount; i < 4; i++)
+  for (int i = highLedsCount; i < 5; i++)
   {
     digitalWrite(leds[i], LOW);
   }

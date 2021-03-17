@@ -21,6 +21,7 @@ boolean Connection::connect()
 
   SerialUSB.println("Connected to WiFi network.");
 
+  // TODO: handle disconnection from server
   this->client.onEvent([&](WebsocketsEvent event, String data) {
     switch (event)
     {

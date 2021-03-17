@@ -4,7 +4,7 @@
 #include "Connection/Connection.cpp"
 #include "Message/Message.cpp"
 
-int LED_SWITCH = 8;
+int LED_SWITCH = 13;
 
 Connection connection = Connection();
 State state = State();

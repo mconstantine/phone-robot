@@ -3,17 +3,23 @@
 #include "State/State.cpp"
 #include "Connection/Connection.cpp"
 #include "Message/Message.cpp"
+#include "Error/Error.h"
 
 int LED_SWITCH = 13;
 
-Connection connection = Connection();
-State state = State();
-bool isError = false;
+Connection connection;
+State state;
+Error error;
 
 void setup()
 {
   SerialUSB.begin(9600);
+
   pinMode(LED_SWITCH, INPUT);
+
+  connection.setConnectionCloseCallback([&]() {
+    error.setIsError(true);
+  });
 }
 
 void loop()
@@ -26,13 +32,13 @@ void loop()
     }
 
     state.update(STATE_INITIAL);
-    isError = false;
+    error.setIsError(false);
     connection.disconnect();
 
     return;
   }
 
-  if (isError)
+  if (error.isError())
   {
     return;
   }
@@ -69,7 +75,7 @@ void loop()
       state.update(STATE_AUTHORIZED);
       break;
     case TRI_STATE_ERROR:
-      isError = true;
+      error.setIsError(true);
       break;
     case TRI_STATE_RETRY:
       delay(1000);

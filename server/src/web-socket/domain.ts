@@ -77,8 +77,27 @@ const RefusedResponse = t.type(
   'RefusedResponse'
 )
 
+const PeerConnectedResponse = t.type(
+  {
+    type: t.literal('PeerConnected')
+  },
+  'PeerConnectedResponse'
+)
+
+const PeerDisconnectedResponse = t.type(
+  {
+    type: t.literal('PeerDisconnected')
+  },
+  'PeerDisconnectedResponse'
+)
+
 export const Response = t.union(
-  [AuthorizedResponse, RefusedResponse],
+  [
+    AuthorizedResponse,
+    RefusedResponse,
+    PeerConnectedResponse,
+    PeerDisconnectedResponse
+  ],
   'Response'
 )
 export type Response = t.TypeOf<typeof Response>

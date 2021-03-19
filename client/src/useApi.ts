@@ -195,7 +195,7 @@ function useRequest<I, II, O, OO>(
   return request
 }
 
-function refreshToken(
+export function refreshToken(
   account: AccountState,
   dispatchAccountAction: Reader<AccountAction, void>
 ): TaskEither<ApiError, void> {

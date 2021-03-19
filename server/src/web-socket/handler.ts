@@ -1,4 +1,4 @@
-import { boolean, option, task, taskEither } from 'fp-ts'
+import { boolean, either, option, taskEither } from 'fp-ts'
 import { constVoid, pipe } from 'fp-ts/function'
 import { Option } from 'fp-ts/Option'
 import WebSocket from 'ws'
@@ -6,17 +6,26 @@ import { verifyToken } from '../lib/jsonwebtoken'
 import { getUserById } from '../user/userDatabase'
 import { AuthorizationMessage, Message, Response } from './domain'
 import { State, updateState } from './state'
-import { Task } from 'fp-ts/Task'
+import { TaskEither } from 'fp-ts/lib/TaskEither'
+import { IO } from 'fp-ts/IO'
+import { Action } from './state'
 
 export abstract class WebSocketHandler {
   protected socket: Option<WebSocket> = option.none
   protected state: State = { type: 'Idle' }
+  protected onPeerDisconnected: IO<void>
 
-  protected updateState(message: Message) {
-    this.state = updateState(this.state, message)
+  public constructor(onPeerDisconnected: IO<void>) {
+    this.onPeerDisconnected = onPeerDisconnected
+  }
+
+  protected updateState(action: Action) {
+    this.state = updateState(this.state, action)
   }
 
   protected sendResponse(response: Response) {
+    console.log(response)
+
     pipe(
       this.socket,
       option.fold(constVoid, client =>
@@ -28,56 +37,84 @@ export abstract class WebSocketHandler {
   public abstract authorize(
     socket: WebSocket,
     message: Message
-  ): Task<Option<WebSocket>>
+  ): TaskEither<void, WebSocket>
 
-  public abstract reset(): void
+  protected abstract reset(): void
+
+  public isConnected(): boolean {
+    return option.isSome(this.socket)
+  }
+
+  public signalPeerConnected(): void {
+    this.updateState({
+      type: 'PeerConnected'
+    })
+
+    this.sendResponse({
+      type: 'PeerConnected'
+    })
+  }
+
+  public signalPeerDisconnected(): void {
+    this.updateState({
+      type: 'PeerDisconnected'
+    })
+
+    this.sendResponse({
+      type: 'PeerDisconnected'
+    })
+  }
 }
 
 export class WebSocketClientHandler extends WebSocketHandler {
-  authorize(socket: WebSocket, message: AuthorizationMessage) {
+  public authorize(socket: WebSocket, message: AuthorizationMessage) {
+    const sendRefusal = () =>
+      socket.send(
+        pipe(
+          {
+            type: 'Refused',
+            reason: 'Someone else is already connected'
+          },
+          Response.encode,
+          JSON.stringify
+        )
+      )
+
     const authorize = () =>
       pipe(
         verifyToken(message.accessToken, 'USER_ACCESS'),
+        either.orElse(error => {
+          sendRefusal()
+          return either.left(error)
+        }),
         taskEither.fromEither,
         taskEither.chain(getUserById),
         taskEither.mapLeft(constVoid),
         taskEither.chain(taskEither.fromOption(constVoid)),
         taskEither.chain(() =>
-          taskEither.fromIO(() => {
+          taskEither.rightIO(() => {
             this.socket = option.some(socket)
             this.sendResponse({ type: 'Authorized' })
             this.updateState(message)
             socket.on('close', () => this.reset())
 
-            return this.socket
+            return socket
           })
-        ),
-        taskEither.getOrElse(() =>
-          task.fromIO<Option<WebSocket>>(() => option.none)
         )
       )
 
-    const refuse = () =>
-      task.fromIO(() => {
-        socket.send(
-          pipe(
-            {
-              type: 'Refused',
-              reason: 'Someone else is already connected'
-            },
-            Response.encode,
-            JSON.stringify
-          )
-        )
-
-        return option.none
-      })
+    const refuse = () => taskEither.leftIO(sendRefusal)
 
     return pipe(this.socket, option.fold(authorize, refuse))
   }
 
-  reset() {
-    this.updateState({ type: 'Reset', from: 'UI' })
+  public reset() {
+    console.log('Client is out')
+
+    this.onPeerDisconnected()
+    this.updateState({
+      type: 'Reset'
+    })
 
     pipe(
       this.socket,
@@ -94,27 +131,27 @@ export class WebSocketRobotHandler extends WebSocketHandler {
   private pingInterval: Option<NodeJS.Timeout> = option.none
   private pingTimeout: Option<NodeJS.Timeout> = option.none
 
-  authorize(socket: WebSocket, message: AuthorizationMessage) {
+  public authorize(socket: WebSocket, message: AuthorizationMessage) {
     const authorize = () =>
       pipe(
         message.accessToken === process.env.ROBOT_SECRET,
         boolean.fold(
-          () => task.fromIO(() => option.none),
+          () => taskEither.leftIO(constVoid),
           () =>
-            task.fromIO(() => {
+            taskEither.rightIO(() => {
               this.socket = option.some(socket)
               this.sendResponse({ type: 'Authorized' })
               this.updateState(message)
               this.startPinging()
               socket.on('close', () => this.reset())
 
-              return this.socket
+              return socket
             })
         )
       )
 
     const refuse = () =>
-      task.fromIO(() => {
+      taskEither.leftIO(() => {
         socket.send(
           pipe(
             {
@@ -125,15 +162,19 @@ export class WebSocketRobotHandler extends WebSocketHandler {
             JSON.stringify
           )
         )
-
-        return option.none
       })
 
     return pipe(this.socket, option.fold(authorize, refuse))
   }
 
-  reset() {
-    this.updateState({ type: 'Reset', from: 'Robot' })
+  public reset() {
+    console.log('Robot is out')
+
+    this.onPeerDisconnected()
+    this.updateState({
+      type: 'Reset'
+    })
+
     pipe(this.pingInterval, option.fold(constVoid, clearInterval))
     pipe(this.pingTimeout, option.fold(constVoid, clearTimeout))
 

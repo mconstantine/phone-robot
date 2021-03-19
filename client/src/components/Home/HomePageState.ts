@@ -15,12 +15,21 @@ interface RefusedState {
   reason: string
 }
 
-export type HomePageState = InitialState | AuthorizedState | RefusedState
+interface HandshakingState {
+  type: 'Handshaking'
+}
+
+export type HomePageState =
+  | InitialState
+  | AuthorizedState
+  | RefusedState
+  | HandshakingState
 
 export function foldHomePageState<T>(
   whenInitial: IO<T>,
   whenAuthorized: Reader<AuthorizedState, T>,
-  whenResfused: Reader<RefusedState, T>
+  whenHandShaking: Reader<HandshakingState, T>,
+  whenRefused: Reader<RefusedState, T>
 ): Reader<HomePageState, T> {
   return state => {
     switch (state.type) {
@@ -29,7 +38,9 @@ export function foldHomePageState<T>(
       case 'Authorized':
         return whenAuthorized(state)
       case 'Refused':
-        return whenResfused(state)
+        return whenRefused(state)
+      case 'Handshaking':
+        return whenHandShaking(state)
     }
   }
 }
@@ -50,12 +61,22 @@ export function homePageReducer(
             type: 'Refused',
             reason: response.reason
           }
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return state
       }
     case 'Authorized':
       switch (response.type) {
         case 'Authorized':
           return state
         case 'Refused':
+          return state
+        case 'PeerConnected':
+          return {
+            type: 'Handshaking'
+          }
+        case 'PeerDisconnected':
           return state
       }
     case 'Refused':
@@ -64,6 +85,21 @@ export function homePageReducer(
           return { type: 'Authorized' }
         case 'Refused':
           return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return state
+      }
+    case 'Handshaking':
+      switch (response.type) {
+        case 'Authorized':
+          return state
+        case 'Refused':
+          return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return { type: 'Authorized' }
       }
   }
 }

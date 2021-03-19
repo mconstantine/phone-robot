@@ -47,6 +47,7 @@ export default function HomePage() {
         foldHomePageState(
           () => <HandshakeTimeline state={state} />,
           () => <HandshakeTimeline state={state} />,
+          () => <HandshakeTimeline state={state} />,
           ({ reason }) => (
             <Result
               status="error"
@@ -65,7 +66,7 @@ interface HandshakeTimelineProps {
 }
 
 function HandshakeTimeline(props: HandshakeTimelineProps) {
-  const steps = ['Authorizing', 'Waiting for robot']
+  const steps = ['Authorizing', 'Waiting for robot', 'Establishing connection']
 
   const createTimeline = (currentStep: number) => (
     <Timeline pending={steps[currentStep]}>
@@ -80,6 +81,7 @@ function HandshakeTimeline(props: HandshakeTimelineProps) {
     foldHomePageState(
       () => createTimeline(0),
       () => createTimeline(1),
+      () => createTimeline(2),
       constNull
     )
   )

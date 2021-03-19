@@ -1,93 +1,194 @@
-#include <Arduino.h>
 #include "Config.h"
-#include "State/State.cpp"
-#include "Connection/Connection.cpp"
-#include "Message/Message.cpp"
-#include "Error/Error.h"
+#include "State.hpp"
 
-int LED_SWITCH = 13;
+using namespace websockets2_generic;
 
-Connection connection;
-State state;
-Error error;
+WebsocketsClient client;
+State currentState;
 
 void setup()
 {
-  SerialUSB.begin(9600);
+  pinMode(PIN_SWITCH, INPUT);
+  pinMode(PIN_LED_1, OUTPUT);
+  pinMode(PIN_LED_2, OUTPUT);
+  pinMode(PIN_LED_3, OUTPUT);
+  pinMode(PIN_LED_4, OUTPUT);
+  pinMode(PIN_LED_5, OUTPUT);
+  pinMode(PIN_LED_ERROR, OUTPUT);
 
-  pinMode(LED_SWITCH, INPUT);
-
-  connection.setConnectionCloseCallback([&]() {
-    error.setIsError(true);
-  });
+  currentState.setup();
+  client.onMessage(onWebsocketsMessage);
+  client.onEvent(onWebsocketsEvent);
 }
 
 void loop()
 {
-  if (!digitalRead(LED_SWITCH))
+  bool isSwitchOn = digitalRead(PIN_SWITCH);
+
+  if (isSwitchOn)
   {
-    if (!state.didChange())
+    if (WiFi.status() != WL_CONNECTED)
     {
-      return;
+      SerialUSB.print("Connecting to ");
+      SerialUSB.print(WiFiSSID);
+
+      WiFi.begin(WiFiSSID, WiFiPassword);
+
+      for (int i = 0; i < 15 && WiFi.status() != WL_CONNECTED; i++)
+      {
+        SerialUSB.print(".");
+        delay(1000);
+      }
+
+      SerialUSB.println("");
+
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        SerialUSB.println("Connected.");
+      }
+      else
+      {
+        SerialUSB.println("Failed. Retrying in 10 seconds.");
+        delay(10000);
+        return;
+      }
     }
 
-    state.update(STATE_INITIAL);
-    error.setIsError(false);
-    connection.disconnect();
+    if (!client.available())
+    {
+      SerialUSB.println("Connecting to server...");
+      bool connected = client.connect(WebSocketServerUrl, ServerPort, WebSocketServerPath);
 
+      if (connected)
+      {
+        SerialUSB.println("Connected.");
+      }
+      else
+      {
+        SerialUSB.println("Unable to connect to server. Retrying in 10 seconds.");
+        delay(10000);
+        return;
+      }
+    }
+
+    client.poll();
+
+    if (currentState.getState() < State::WaitingForAuthorization)
+    {
+      SerialUSB.println("Sending authorization request...");
+
+      JSONVar document;
+
+      document["type"] = "Authorization";
+      document["from"] = "Robot";
+      document["accessToken"] = Secret;
+
+      String message = JSON.stringify(document);
+      bool success = client.send(message);
+
+      if (success)
+      {
+        SerialUSB.println("Sent.");
+        currentState.setState(State::WaitingForAuthorization);
+      }
+      else
+      {
+        SerialUSB.println("Unable to send the message. Retrying in 3 seconds.");
+        delay(3000);
+        return;
+      }
+    }
+  }
+  else
+  {
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      if (client.available() || client.connect(WebSocketServerUrl, ServerPort, WebSocketServerPath))
+      {
+        SerialUSB.println("Disconnecting from server...");
+
+        JSONVar document;
+
+        document["type"] = "Reset";
+        document["from"] = "Robot";
+
+        String message = JSON.stringify(document);
+
+        bool success = client.send(message);
+
+        if (success)
+        {
+          // If we closed the connection right away, the message would be canceled
+          delay(1000);
+          client.close();
+        }
+        else
+        {
+          SerialUSB.println("Unable to send reset message. Retrying in 3 seconds.");
+          delay(3000);
+          return;
+        }
+      }
+
+      SerialUSB.print("Disconnecting from ");
+      SerialUSB.print(WiFiSSID);
+      SerialUSB.println(".");
+
+      WiFi.end();
+    }
+
+    currentState.setState(State::Initial);
+  }
+}
+
+void onWebsocketsEvent(WebsocketsEvent event, String data)
+{
+  if (event == WebsocketsEvent::ConnectionOpened)
+  {
+    currentState.setState(State::Connected);
+  }
+  else if (event == WebsocketsEvent::ConnectionClosed)
+  {
+    currentState.setState(State::Initial);
+  }
+  else if (event == WebsocketsEvent::GotPing)
+  {
+    client.pong();
+  }
+}
+
+void onWebsocketsMessage(WebsocketsMessage message)
+{
+  JSONVar document = JSON.parse(message.data());
+
+  if (
+      JSON.typeof(document) == "undefined" ||
+      !document.hasOwnProperty("type"))
+  {
     return;
   }
 
-  if (error.isError())
+  const String type = (const char *)document["type"];
+
+  SerialUSB.print("New message of type: ");
+  SerialUSB.print(type);
+  SerialUSB.println(".");
+
+  if (type == "Authorized")
   {
-    return;
+    currentState.setState(State::Authorized);
   }
-
-  connection.poll();
-
-  switch (state.getCurrent())
+  else if (type == "Refused")
   {
-  case STATE_INITIAL:
-    if (connection.connect())
-    {
-      state.update(STATE_CONNECTED);
-    }
-    else
-    {
-      delay(10000);
-    }
-
-    break;
-  case STATE_CONNECTED:
-    if (connection.sendMessage(AuthorizationMessage()))
-    {
-      state.update(STATE_WAITING_FOR_AUTHORIZATION);
-    }
-    else
-    {
-      delay(3000);
-    }
-    break;
-  case STATE_WAITING_FOR_AUTHORIZATION:
-    switch (connection.isAuthorized())
-    {
-    case TRI_STATE_OK:
-      state.update(STATE_AUTHORIZED);
-      break;
-    case TRI_STATE_ERROR:
-      error.setIsError(true);
-      break;
-    case TRI_STATE_RETRY:
-      delay(1000);
-      break;
-    }
-
-    break;
-  case STATE_AUTHORIZED:
-    // TODO: wait for application
-    break;
-  case STATE_READY:
-    // TODO: listen for commands
-    break;
+    SerialUSB.println("Connection refused by server.");
+    currentState.setState(State::Error);
+  }
+  else if (type == "PeerConnected")
+  {
+    currentState.setState(State::Handshaking);
+  }
+  else if (type == "PeerDisconnected")
+  {
+    currentState.setState(State::Authorized);
   }
 }

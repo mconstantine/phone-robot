@@ -5,5 +5,16 @@
   "prettier.singleQuote": true,
   "prettier.trailingComma": "none",
   "prettier.arrowParens": "avoid",
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "files.associations": {
+    "*.tcc": "cpp",
+    "bitset": "cpp",
+    "optional": "cpp",
+    "functional": "cpp",
+    "fstream": "cpp",
+    "istream": "cpp",
+    "ostream": "cpp",
+    "sstream": "cpp",
+    "streambuf": "cpp"
+  }
 }

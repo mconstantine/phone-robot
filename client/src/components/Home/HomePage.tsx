@@ -1,10 +1,11 @@
 import { Button, Layout, Result, Timeline } from 'antd'
-import { either } from 'fp-ts'
-import { constNull, constVoid, pipe } from 'fp-ts/function'
+import { option } from 'fp-ts'
+import { constVoid, pipe } from 'fp-ts/function'
 import { useEffect, useReducer } from 'react'
 import { foldAccount, useAccount } from '../../contexts/Account/Account'
-import { refreshToken } from '../../useApi'
-import { foldRefusalReason, Message, Response } from './domain'
+import { useWebSocket } from '../../contexts/WebSocket/WebSocket'
+import { foldWebSocketState } from '../../contexts/WebSocket/WebSocketState'
+import { foldRefusalReason } from './domain'
 import {
   foldHomePageState,
   homePageReducer,
@@ -12,55 +13,44 @@ import {
 } from './HomePageState'
 
 export default function HomePage() {
-  const { account, dispatchAccountAction } = useAccount()
+  const { account } = useAccount()
   const [state, dispatch] = useReducer(homePageReducer, { type: 'Initial' })
+  const webSocket = useWebSocket()
 
   useEffect(() => {
-    const connection = new WebSocket(process.env.REACT_APP_WS_URL!)
-
-    connection.onerror = () =>
-      dispatch({
-        type: 'WebSocketConnectionError'
-      })
-
-    connection.onopen = () =>
-      pipe(
-        account,
-        foldAccount(constVoid, account =>
-          sendMessage(connection, {
-            type: 'Authorization',
-            from: 'UI',
-            accessToken: account.accessToken
-          })
-        )
-      )
-
-    connection.onmessage = response =>
-      pipe(
-        response.data,
-        data => either.tryCatch(() => JSON.parse(data), constVoid),
-        either.chainW(Response.decode),
-        either.fold(constVoid, response => {
-          if (response.type === 'Refused' && response.reason === 'Forbidden') {
-            const tryRefreshingToken = pipe(
-              refreshToken(account, dispatchAccountAction)
+    pipe(
+      webSocket,
+      foldWebSocketState(
+        constVoid,
+        webSocket =>
+          pipe(
+            webSocket.response,
+            option.fold(
+              () =>
+                pipe(
+                  account,
+                  foldAccount(constVoid, account =>
+                    webSocket.sendMessage({
+                      type: 'Authorization',
+                      from: 'UI',
+                      accessToken: account.accessToken
+                    })
+                  )
+                ),
+              dispatch
             )
-
-            tryRefreshingToken()
-          } else {
-            dispatch(response)
-          }
-        })
+          ),
+        constVoid
       )
-
-    return () => connection.close()
-  }, [account, dispatchAccountAction])
+    )
+  }, [webSocket, account])
 
   return (
     <Layout.Content>
       {pipe(
-        state,
-        foldHomePageState(
+        webSocket,
+        foldWebSocketState(
+          () => <HandshakeTimeline state={state} />,
           () => <HandshakeTimeline state={state} />,
           () => (
             <Result
@@ -68,39 +58,50 @@ export default function HomePage() {
               title="Failed to connect to server"
               subTitle="If you know how to do it, start the server, then try reloading the page"
             />
-          ),
-          () => <HandshakeTimeline state={state} />,
-          () => <HandshakeTimeline state={state} />,
-          response =>
-            pipe(
-              response.reason,
-              foldRefusalReason(
-                () => (
-                  <Result
-                    status="error"
-                    title="Connection refused"
-                    subTitle={response.message}
-                  />
-                ),
-                () => (
-                  <Result
-                    status="error"
-                    title="Invalid credentials"
-                    subTitle={response.message}
-                    extra={[
-                      <Button
-                        onClick={() =>
-                          dispatchAccountAction({ type: 'Logout' })
-                        }
-                      >
-                        Logout
-                      </Button>
-                    ]}
-                  />
-                )
-              )
-            )
+          )
         )
+        // state,
+        // foldHomePageState(
+        //   () => <HandshakeTimeline state={state} />,
+        //   () => (
+        //     <Result
+        //       status="error"
+        //       title="Failed to connect to server"
+        //       subTitle="If you know how to do it, start the server, then try reloading the page"
+        //     />
+        //   ),
+        //   () => <HandshakeTimeline state={state} />,
+        //   () => <HandshakeTimeline state={state} />
+        //   // response =>
+        //   //   pipe(
+        //   //     response.reason,
+        //   //     foldRefusalReason(
+        //   //       () => (
+        //   //         <Result
+        //   //           status="error"
+        //   //           title="Connection refused"
+        //   //           subTitle={response.message}
+        //   //         />
+        //   //       ),
+        //   //       () => (
+        //   //         <Result
+        //   //           status="error"
+        //   //           title="Invalid credentials"
+        //   //           subTitle={response.message}
+        //   //           extra={[
+        //   //             <Button
+        //   //               onClick={() =>
+        //   //                 dispatchAccountAction({ type: 'Logout' })
+        //   //               }
+        //   //             >
+        //   //               Logout
+        //   //             </Button>
+        //   //           ]}
+        //   //         />
+        //   //       )
+        //   //     )
+        //   //   )
+        // )
       )}
     </Layout.Content>
   )
@@ -112,6 +113,7 @@ interface HandshakeTimelineProps {
 
 function HandshakeTimeline(props: HandshakeTimelineProps) {
   const steps = ['Authorizing', 'Waiting for robot', 'Establishing connection']
+  const { dispatchAccountAction } = useAccount()
 
   const createTimeline = (currentStep: number) => (
     <Timeline pending={steps[currentStep]}>
@@ -125,14 +127,35 @@ function HandshakeTimeline(props: HandshakeTimelineProps) {
     props.state,
     foldHomePageState(
       () => createTimeline(0),
-      constNull,
       () => createTimeline(1),
       () => createTimeline(2),
-      constNull
+      response =>
+        pipe(
+          response.reason,
+          foldRefusalReason(
+            () => (
+              <Result
+                status="error"
+                title="Connection refused"
+                subTitle={response.message}
+              />
+            ),
+            () => (
+              <Result
+                status="error"
+                title="Invalid credentials"
+                subTitle={response.message}
+                extra={[
+                  <Button
+                    onClick={() => dispatchAccountAction({ type: 'Logout' })}
+                  >
+                    Logout
+                  </Button>
+                ]}
+              />
+            )
+          )
+        )
     )
   )
-}
-
-function sendMessage(connection: WebSocket, message: Message) {
-  connection.send(pipe(message, Message.encode, JSON.stringify))
 }

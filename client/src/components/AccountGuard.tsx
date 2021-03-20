@@ -5,6 +5,7 @@ import { flow, pipe } from 'fp-ts/function'
 import { Menu } from './Menu'
 import { foldAccount, useAccount } from '../contexts/Account/Account'
 import { LoginPage } from './Login/LoginPage'
+import { WebSocketProvider } from '../contexts/WebSocket/WebSocket'
 
 const HomePage = lazy(() => import('./Home/HomePage'))
 const ProfilePage = lazy(() => import('./Profile/ProfilePage/ProfilePage'))
@@ -26,7 +27,11 @@ export function AccountGuard() {
           <Router
             render={flow(
               foldLocation({
-                Home: () => <HomePage />,
+                Home: () => (
+                  <WebSocketProvider>
+                    <HomePage />
+                  </WebSocketProvider>
+                ),
                 Profile: () => <ProfilePage />,
                 Users: () => <UsersPage />
               }),

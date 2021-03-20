@@ -5,10 +5,6 @@ interface InitialState {
   type: 'Initial'
 }
 
-interface WebSocketConnectionErrorState {
-  type: 'WebSocketConnectionError'
-}
-
 interface AuthorizedState {
   type: 'Authorized'
 }
@@ -25,14 +21,12 @@ interface HandshakingState {
 
 export type HomePageState =
   | InitialState
-  | WebSocketConnectionErrorState
   | AuthorizedState
   | RefusedState
   | HandshakingState
 
 export function foldHomePageState<T>(
   whenInitial: Reader<InitialState, T>,
-  whenWebSocketConnectionError: Reader<WebSocketConnectionErrorState, T>,
   whenAuthorized: Reader<AuthorizedState, T>,
   whenHandShaking: Reader<HandshakingState, T>,
   whenRefused: Reader<RefusedState, T>
@@ -41,8 +35,6 @@ export function foldHomePageState<T>(
     switch (state.type) {
       case 'Initial':
         return whenInitial(state)
-      case 'WebSocketConnectionError':
-        return whenWebSocketConnectionError(state)
       case 'Authorized':
         return whenAuthorized(state)
       case 'Refused':
@@ -53,23 +45,13 @@ export function foldHomePageState<T>(
   }
 }
 
-interface WebSocketConnectionError {
-  type: 'WebSocketConnectionError'
-}
-
-type HomePageAction = Response | WebSocketConnectionError
-
 export function homePageReducer(
   state: HomePageState,
-  response: HomePageAction
+  response: Response
 ): HomePageState {
   switch (state.type) {
     case 'Initial':
       switch (response.type) {
-        case 'WebSocketConnectionError':
-          return {
-            type: 'WebSocketConnectionError'
-          }
         case 'Authorized':
           return {
             type: 'Authorized'
@@ -85,25 +67,8 @@ export function homePageReducer(
         case 'PeerDisconnected':
           return state
       }
-    case 'WebSocketConnectionError':
-      switch (response.type) {
-        case 'WebSocketConnectionError':
-          return state
-        case 'Authorized':
-          return state
-        case 'Refused':
-          return state
-        case 'PeerConnected':
-          return state
-        case 'PeerDisconnected':
-          return state
-      }
     case 'Authorized':
       switch (response.type) {
-        case 'WebSocketConnectionError':
-          return {
-            type: 'WebSocketConnectionError'
-          }
         case 'Authorized':
           return state
         case 'Refused':
@@ -117,10 +82,6 @@ export function homePageReducer(
       }
     case 'Refused':
       switch (response.type) {
-        case 'WebSocketConnectionError':
-          return {
-            type: 'WebSocketConnectionError'
-          }
         case 'Authorized':
           return { type: 'Authorized' }
         case 'Refused':
@@ -132,10 +93,6 @@ export function homePageReducer(
       }
     case 'Handshaking':
       switch (response.type) {
-        case 'WebSocketConnectionError':
-          return {
-            type: 'WebSocketConnectionError'
-          }
         case 'Authorized':
           return state
         case 'Refused':

@@ -69,10 +69,20 @@ const AuthorizedResponse = t.type(
   'AuthorizedResponse'
 )
 
+const RefusalReason = t.keyof(
+  {
+    ConnectionBusy: true,
+    Forbidden: true
+  },
+  'RefusalReason'
+)
+export type RefusalReason = t.TypeOf<typeof RefusalReason>
+
 const RefusedResponse = t.type(
   {
     type: t.literal('Refused'),
-    reason: t.string
+    reason: RefusalReason,
+    message: t.string
   },
   'RefusedResponse'
 )

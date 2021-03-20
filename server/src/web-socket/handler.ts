@@ -4,7 +4,12 @@ import { Option } from 'fp-ts/Option'
 import WebSocket from 'ws'
 import { verifyToken } from '../lib/jsonwebtoken'
 import { getUserById } from '../user/userDatabase'
-import { AuthorizationMessage, Message, Response } from './domain'
+import {
+  AuthorizationMessage,
+  Message,
+  RefusalReason,
+  Response
+} from './domain'
 import { State, updateState } from './state'
 import { TaskEither } from 'fp-ts/lib/TaskEither'
 import { IO } from 'fp-ts/IO'
@@ -68,13 +73,10 @@ export abstract class WebSocketHandler {
 
 export class WebSocketClientHandler extends WebSocketHandler {
   public authorize(socket: WebSocket, message: AuthorizationMessage) {
-    const sendRefusal = () =>
+    const sendRefusal = (reason: RefusalReason, message: string) =>
       socket.send(
         pipe(
-          {
-            type: 'Refused',
-            reason: 'Someone else is already connected'
-          },
+          { type: 'Refused', reason, message },
           Response.encode,
           JSON.stringify
         )
@@ -84,7 +86,7 @@ export class WebSocketClientHandler extends WebSocketHandler {
       pipe(
         verifyToken(message.accessToken, 'USER_ACCESS'),
         either.orElse(error => {
-          sendRefusal()
+          sendRefusal('Forbidden', 'Your login cradentials are invalid')
           return either.left(error)
         }),
         taskEither.fromEither,
@@ -103,7 +105,10 @@ export class WebSocketClientHandler extends WebSocketHandler {
         )
       )
 
-    const refuse = () => taskEither.leftIO(sendRefusal)
+    const refuse = () =>
+      taskEither.leftIO(() =>
+        sendRefusal('ConnectionBusy', 'Someone else is already connected')
+      )
 
     return pipe(this.socket, option.fold(authorize, refuse))
   }
@@ -156,7 +161,8 @@ export class WebSocketRobotHandler extends WebSocketHandler {
           pipe(
             {
               type: 'Refused',
-              reason: 'Someone else is already connected'
+              reason: 'ConnectionBusy',
+              message: 'Someone else is already connected'
             },
             Response.encode,
             JSON.stringify

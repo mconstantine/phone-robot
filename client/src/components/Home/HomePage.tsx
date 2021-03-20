@@ -1,9 +1,10 @@
-import { Layout, Result, Timeline } from 'antd'
+import { Button, Layout, Result, Timeline } from 'antd'
 import { either } from 'fp-ts'
 import { constNull, constVoid, pipe } from 'fp-ts/function'
 import { useEffect, useReducer } from 'react'
 import { foldAccount, useAccount } from '../../contexts/Account/Account'
-import { Message, Response } from './domain'
+import { refreshToken } from '../../useApi'
+import { foldRefusalReason, Message, Response } from './domain'
 import {
   foldHomePageState,
   homePageReducer,
@@ -11,11 +12,16 @@ import {
 } from './HomePageState'
 
 export default function HomePage() {
-  const { account } = useAccount()
+  const { account, dispatchAccountAction } = useAccount()
   const [state, dispatch] = useReducer(homePageReducer, { type: 'Initial' })
 
   useEffect(() => {
     const connection = new WebSocket(process.env.REACT_APP_WS_URL!)
+
+    connection.onerror = () =>
+      dispatch({
+        type: 'WebSocketConnectionError'
+      })
 
     connection.onopen = () =>
       pipe(
@@ -34,11 +40,21 @@ export default function HomePage() {
         response.data,
         data => either.tryCatch(() => JSON.parse(data), constVoid),
         either.chainW(Response.decode),
-        either.fold(constVoid, dispatch)
+        either.fold(constVoid, response => {
+          if (response.type === 'Refused' && response.reason === 'Forbidden') {
+            const tryRefreshingToken = pipe(
+              refreshToken(account, dispatchAccountAction)
+            )
+
+            tryRefreshingToken()
+          } else {
+            dispatch(response)
+          }
+        })
       )
 
     return () => connection.close()
-  }, [account])
+  }, [account, dispatchAccountAction])
 
   return (
     <Layout.Content>
@@ -46,15 +62,44 @@ export default function HomePage() {
         state,
         foldHomePageState(
           () => <HandshakeTimeline state={state} />,
-          () => <HandshakeTimeline state={state} />,
-          () => <HandshakeTimeline state={state} />,
-          ({ reason }) => (
+          () => (
             <Result
               status="error"
-              title="Connection refused"
-              subTitle={reason}
+              title="Failed to connect to server"
+              subTitle="If you know how to do it, start the server, then try reloading the page"
             />
-          )
+          ),
+          () => <HandshakeTimeline state={state} />,
+          () => <HandshakeTimeline state={state} />,
+          response =>
+            pipe(
+              response.reason,
+              foldRefusalReason(
+                () => (
+                  <Result
+                    status="error"
+                    title="Connection refused"
+                    subTitle={response.message}
+                  />
+                ),
+                () => (
+                  <Result
+                    status="error"
+                    title="Invalid credentials"
+                    subTitle={response.message}
+                    extra={[
+                      <Button
+                        onClick={() =>
+                          dispatchAccountAction({ type: 'Logout' })
+                        }
+                      >
+                        Logout
+                      </Button>
+                    ]}
+                  />
+                )
+              )
+            )
         )
       )}
     </Layout.Content>
@@ -80,6 +125,7 @@ function HandshakeTimeline(props: HandshakeTimelineProps) {
     props.state,
     foldHomePageState(
       () => createTimeline(0),
+      constNull,
       () => createTimeline(1),
       () => createTimeline(2),
       constNull

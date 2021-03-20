@@ -1,3 +1,5 @@
+import { IO } from 'fp-ts/IO'
+import { Reader } from 'fp-ts/Reader'
 import * as t from 'io-ts'
 import { NonEmptyString } from 'io-ts-types'
 
@@ -24,10 +26,34 @@ const AuthorizedResponse = t.type(
 )
 type AuthorizedResponse = t.TypeOf<typeof AuthorizedResponse>
 
+const RefusalReason = t.keyof(
+  {
+    ConnectionBusy: true,
+    Forbidden: true
+  },
+  'RefusalReason'
+)
+export type RefusalReason = t.TypeOf<typeof RefusalReason>
+
+export function foldRefusalReason<T>(
+  whenConnectionBusy: IO<T>,
+  whenForbidden: IO<T>
+): Reader<RefusalReason, T> {
+  return reason => {
+    switch (reason) {
+      case 'ConnectionBusy':
+        return whenConnectionBusy()
+      case 'Forbidden':
+        return whenForbidden()
+    }
+  }
+}
+
 const RefusedResponse = t.type(
   {
     type: t.literal('Refused'),
-    reason: t.string
+    reason: RefusalReason,
+    message: t.string
   },
   'RefusedResponse'
 )

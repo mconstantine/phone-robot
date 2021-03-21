@@ -127,7 +127,9 @@ export function networkReducer(
         case 'StartOperating':
           return state
         case 'Reset':
-          return state
+          return {
+            type: 'Initial'
+          }
       }
   }
 }

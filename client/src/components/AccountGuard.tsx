@@ -6,6 +6,7 @@ import { Menu } from './Menu'
 import { foldAccount, useAccount } from '../contexts/Account/Account'
 import { LoginPage } from './Login/LoginPage'
 import { WebSocketProvider } from '../contexts/WebSocket/WebSocket'
+import { NetworkProvider } from '../contexts/Network/Network'
 
 const HomePage = lazy(() => import('./Home/HomePage'))
 const ProfilePage = lazy(() => import('./Profile/ProfilePage/ProfilePage'))
@@ -29,7 +30,9 @@ export function AccountGuard() {
               foldLocation({
                 Home: () => (
                   <WebSocketProvider>
-                    <HomePage />
+                    <NetworkProvider>
+                      <HomePage />
+                    </NetworkProvider>
                   </WebSocketProvider>
                 ),
                 Profile: () => <ProfilePage />,

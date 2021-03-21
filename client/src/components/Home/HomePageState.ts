@@ -45,9 +45,15 @@ export function foldHomePageState<T>(
   }
 }
 
+interface ResetHomePageAction {
+  type: 'Reset'
+}
+
+type HomePageAction = Response | ResetHomePageAction
+
 export function homePageReducer(
   state: HomePageState,
-  response: Response
+  response: HomePageAction
 ): HomePageState {
   switch (state.type) {
     case 'Initial':
@@ -66,6 +72,12 @@ export function homePageReducer(
           return state
         case 'PeerDisconnected':
           return state
+        case 'Ack':
+          return state
+        case 'Reset':
+          return {
+            type: 'Initial'
+          }
       }
     case 'Authorized':
       switch (response.type) {
@@ -79,6 +91,12 @@ export function homePageReducer(
           }
         case 'PeerDisconnected':
           return state
+        case 'Ack':
+          return state
+        case 'Reset':
+          return {
+            type: 'Initial'
+          }
       }
     case 'Refused':
       switch (response.type) {
@@ -90,6 +108,12 @@ export function homePageReducer(
           return state
         case 'PeerDisconnected':
           return state
+        case 'Ack':
+          return state
+        case 'Reset':
+          return {
+            type: 'Initial'
+          }
       }
     case 'Handshaking':
       switch (response.type) {
@@ -101,6 +125,12 @@ export function homePageReducer(
           return state
         case 'PeerDisconnected':
           return { type: 'Authorized' }
+        case 'Ack':
+          return state
+        case 'Reset':
+          return {
+            type: 'Initial'
+          }
       }
   }
 }

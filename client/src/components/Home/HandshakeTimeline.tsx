@@ -2,6 +2,8 @@ import { Button, Result, Timeline } from 'antd'
 import { pipe } from 'fp-ts/function'
 import { useEffect } from 'react'
 import { useAccount } from '../../contexts/Account/Account'
+import { useNetwork } from '../../contexts/Network/Network'
+import { foldNetworkState } from '../../contexts/Network/NetworkState'
 import { foldRefusalReason } from './domain'
 import { foldHomePageState, HomePageState } from './HomePageState'
 
@@ -10,8 +12,25 @@ interface Props {
 }
 
 export function HandshakeTimeline(props: Props) {
-  const steps = ['Authorizing', 'Waiting for robot', 'Establishing connection']
   const { dispatchAccountAction } = useAccount()
+  const { networkState, startHandshaking } = useNetwork()
+
+  const steps = [
+    'Authorizing',
+    'Waiting for robot',
+    'Establishing connection' +
+      pipe(
+        networkState,
+        foldNetworkState(
+          () => '',
+          state => {
+            const rtt = (state.averageRTT / 1000).toFixed(3)
+            return ` (${state.receivedMessagesCount}%), average RTT: ${rtt} seconds`
+          },
+          () => ''
+        )
+      )
+  ]
 
   const createTimeline = (currentStep: number) => (
     <Timeline pending={steps[currentStep]}>
@@ -22,10 +41,10 @@ export function HandshakeTimeline(props: Props) {
   )
 
   useEffect(() => {
-    if (props.state.type === 'Handshaking') {
-      console.log('TODO: start handshaking')
+    if (props.state.type === 'Handshaking' && networkState.type === 'Initial') {
+      startHandshaking()
     }
-  }, [props.state])
+  }, [props.state, networkState, startHandshaking])
 
   return pipe(
     props.state,

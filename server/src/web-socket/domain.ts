@@ -45,12 +45,35 @@ const ResetMessage = t.type(
 )
 export type ResetMessage = t.TypeOf<typeof ResetMessage>
 
-export const Message = t.union([AuthorizationMessage, ResetMessage], 'Message')
+const HandshakingMessage = t.type(
+  {
+    type: t.literal('Handshaking'),
+    from: t.literal('UI')
+  },
+  'HandshakingMessage'
+)
+type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
+
+const AckMessage = t.type(
+  {
+    type: t.literal('Ack'),
+    from: t.literal('Robot')
+  },
+  'AckMessage'
+)
+type AckMessage = t.TypeOf<typeof AckMessage>
+
+export const Message = t.union(
+  [AuthorizationMessage, ResetMessage, HandshakingMessage, AckMessage],
+  'Message'
+)
 export type Message = t.TypeOf<typeof Message>
 
 export function foldMessage<T>(
   whenAuthorization: Reader<AuthorizationMessage, T>,
-  whenReset: Reader<ResetMessage, T>
+  whenReset: Reader<ResetMessage, T>,
+  whenHandshaking: Reader<HandshakingMessage, T>,
+  whenAck: Reader<AckMessage, T>
 ): Reader<Message, T> {
   return message => {
     switch (message.type) {
@@ -58,6 +81,10 @@ export function foldMessage<T>(
         return whenAuthorization(message)
       case 'Reset':
         return whenReset(message)
+      case 'Handshaking':
+        return whenHandshaking(message)
+      case 'Ack':
+        return whenAck(message)
     }
   }
 }
@@ -101,12 +128,28 @@ const PeerDisconnectedResponse = t.type(
   'PeerDisconnectedResponse'
 )
 
+const HandshakingResponse = t.type(
+  {
+    type: t.literal('Handshaking')
+  },
+  'HandshakingResponse'
+)
+
+const AckResponse = t.type(
+  {
+    type: t.literal('Ack')
+  },
+  'AckResponse'
+)
+
 export const Response = t.union(
   [
     AuthorizedResponse,
     RefusedResponse,
     PeerConnectedResponse,
-    PeerDisconnectedResponse
+    PeerDisconnectedResponse,
+    HandshakingResponse,
+    AckResponse
   ],
   'Response'
 )

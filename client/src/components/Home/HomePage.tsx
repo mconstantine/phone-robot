@@ -17,7 +17,7 @@ export default function HomePage() {
     pipe(
       webSocket,
       foldWebSocketState(
-        constVoid,
+        () => dispatch({ type: 'Reset' }),
         webSocket =>
           pipe(
             webSocket.response,
@@ -36,7 +36,7 @@ export default function HomePage() {
               dispatch
             )
           ),
-        constVoid
+        () => dispatch({ type: 'Reset' })
       )
     )
   }, [webSocket, account])

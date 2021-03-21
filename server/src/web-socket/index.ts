@@ -77,7 +77,9 @@ export function initWebSocket(server: Server) {
                 pipe(
                   message.from,
                   foldActor(constVoid, () => robotHandler.reset())
-                )
+                ),
+              () => robotHandler.forwardHandshakingMessage(),
+              () => clientHandler.forwardAckMessage()
             )
           )
         )

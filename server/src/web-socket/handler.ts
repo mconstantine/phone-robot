@@ -113,6 +113,12 @@ export class WebSocketClientHandler extends WebSocketHandler {
     return pipe(this.socket, option.fold(authorize, refuse))
   }
 
+  public forwardAckMessage() {
+    this.sendResponse({
+      type: 'Ack'
+    })
+  }
+
   public reset() {
     console.log('Client is out')
 
@@ -171,6 +177,12 @@ export class WebSocketRobotHandler extends WebSocketHandler {
       })
 
     return pipe(this.socket, option.fold(authorize, refuse))
+  }
+
+  public forwardHandshakingMessage() {
+    this.sendResponse({
+      type: 'Handshaking'
+    })
   }
 
   public reset() {

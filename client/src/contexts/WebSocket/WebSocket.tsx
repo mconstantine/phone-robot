@@ -5,8 +5,8 @@ import {
   PropsWithChildren,
   useContext,
   useEffect,
-  useMemo,
-  useReducer
+  useReducer,
+  useState
 } from 'react'
 import { Message, Response } from '../../components/Home/domain'
 import { refreshToken } from '../../useApi'
@@ -18,10 +18,9 @@ const WebSocketContext = createContext<WebSocketState>({
 })
 
 export function WebSocketProvider(props: PropsWithChildren<{}>) {
-  const connection = useMemo(
-    () => new WebSocket(process.env.REACT_APP_WS_URL!),
-    []
-  )
+  const constConnection = () => new WebSocket(process.env.REACT_APP_WS_URL!)
+
+  const [connection, setConnection] = useState(constConnection)
   const { account, dispatchAccountAction } = useAccount()
 
   const [state, dispatch] = useReducer(webSocketReducer, {
@@ -32,6 +31,11 @@ export function WebSocketProvider(props: PropsWithChildren<{}>) {
     connection.send(pipe(message, Message.encode, JSON.stringify))
 
   connection.onerror = () => dispatch({ type: 'Error' })
+
+  connection.onclose = () => {
+    dispatch({ type: 'Close' })
+    setTimeout(() => setConnection(constConnection), 10000)
+  }
 
   connection.onopen = () =>
     dispatch({

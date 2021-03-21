@@ -212,6 +212,7 @@ export class WebSocketRobotHandler extends WebSocketHandler {
         () => console.error('Trying to start pinging without a socket'),
         socket => {
           socket.on('pong', () => {
+            console.log('Robot ponged')
             this.isRobotAlive = true
           })
 
@@ -229,6 +230,8 @@ export class WebSocketRobotHandler extends WebSocketHandler {
       option.fold(
         () => console.error('Trying to ping without a socket'),
         socket => {
+          console.log('Pinging robot')
+
           this.isRobotAlive = false
           socket.ping()
 
@@ -247,6 +250,7 @@ export class WebSocketRobotHandler extends WebSocketHandler {
         () => console.error('Trying to check robot without a socket'),
         socket => {
           if (!this.isRobotAlive) {
+            console.log('Robot is dead')
             socket.close()
           }
         }

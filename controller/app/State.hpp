@@ -9,6 +9,7 @@ public:
   static const int WaitingForAuthorization = 2;
   static const int Authorized = 3;
   static const int Handshaking = 4;
+  static const int Ready = 5;
 
   void setup();
   void setState(int newState);
@@ -77,6 +78,17 @@ void State::setState(int newState)
     {
       actualNewState = Authorized;
     }
+    else if (newState == Ready)
+    {
+      actualNewState = Ready;
+    }
+  }
+  else if (currentState == Ready)
+  {
+    if (newState == Authorized)
+    {
+      actualNewState = Authorized;
+    }
   }
 
   if (this->currentState == actualNewState)
@@ -115,6 +127,10 @@ String State::getStateName()
   {
     return "Handshaking";
   }
+  else if (this->currentState == Ready)
+  {
+    return "Ready";
+  }
 }
 
 void State::showCurrentState()
@@ -150,6 +166,10 @@ void State::showCurrentState()
   else if (this->currentState == Handshaking)
   {
     litLedsCount = 4;
+  }
+  else if (this->currentState == Ready)
+  {
+    litLedsCount = 5;
   }
 
   for (int i = 0; i < litLedsCount; i++)

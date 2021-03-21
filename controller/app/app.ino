@@ -5,6 +5,10 @@ using namespace websockets2_generic;
 
 WebsocketsClient client;
 State currentState;
+String ackMessage;
+long lastMessageSentAt = 0;
+long receivedMessagesCount = 0;
+long averageRTT = 0;
 
 void setup()
 {
@@ -19,6 +23,13 @@ void setup()
   currentState.setup();
   client.onMessage(onWebsocketsMessage);
   client.onEvent(onWebsocketsEvent);
+
+  JSONVar document;
+
+  document["type"] = "Ack";
+  document["from"] = "Robot";
+
+  ackMessage = JSON.stringify(document);
 }
 
 void loop()
@@ -190,5 +201,41 @@ void onWebsocketsMessage(WebsocketsMessage message)
   else if (type == "PeerDisconnected")
   {
     currentState.setState(State::Authorized);
+  }
+  else if (type == "Handshaking")
+  {
+    const long newReceivedMessagesCount = receivedMessagesCount + 1;
+    const long now = millis();
+
+    if (lastMessageSentAt != 0)
+    {
+      const long rtt = now - lastMessageSentAt;
+      averageRTT = ((averageRTT * receivedMessagesCount) + rtt) / newReceivedMessagesCount;
+
+      SerialUSB.print("Average RTT is ");
+      SerialUSB.print(averageRTT);
+      SerialUSB.println(".");
+    }
+
+    receivedMessagesCount = newReceivedMessagesCount;
+    sendAck();
+    lastMessageSentAt = now;
+
+    if (receivedMessagesCount == 100)
+    {
+      currentState.setState(State::Ready);
+    }
+  }
+}
+
+void sendAck()
+{
+  bool success = client.send(ackMessage);
+
+  if (!success)
+  {
+    SerialUSB.println("Unable to send acknowledgement. Retrying in 3 seconds.");
+    delay(3000);
+    sendAck();
   }
 }

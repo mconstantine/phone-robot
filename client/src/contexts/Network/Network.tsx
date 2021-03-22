@@ -1,4 +1,4 @@
-import { pipe } from 'fp-ts/function'
+import { constVoid, pipe } from 'fp-ts/function'
 import {
   createContext,
   PropsWithChildren,
@@ -33,7 +33,8 @@ export function NetworkProvider(props: PropsWithChildren<{}>) {
     pipe(
       webSocket,
       foldWebSocketState(
-        () => dispatch({ type: 'Reset' }),
+        // () => dispatch({ type: 'Reset' }),
+        constVoid, // FIXME:
         webSocket => {
           dispatch({ type: 'Connected' })
 

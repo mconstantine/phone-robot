@@ -4,7 +4,7 @@ import { useAccount } from '../../contexts/Account/Account'
 import { HandshakeTimeline } from './HandshakeTimeline'
 import { useNetwork } from '../../contexts/Network/Network'
 import { foldNetworkState } from '../../contexts/Network/NetworkState'
-import { UI } from './UI'
+import { UI } from './UI/UI'
 import { foldRefusalReason } from '../../globalDomain'
 
 export default function HomePage() {

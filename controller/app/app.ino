@@ -212,6 +212,9 @@ void onWebsocketsMessage(WebsocketsMessage message)
       const long rtt = now - lastMessageSentAt;
       averageRTT = ((averageRTT * receivedMessagesCount) + rtt) / newReceivedMessagesCount;
 
+      SerialUSB.print("Received ");
+      SerialUSB.print(newReceivedMessagesCount);
+      SerialUSB.print(" messages. ");
       SerialUSB.print("Average RTT is ");
       SerialUSB.print(averageRTT);
       SerialUSB.println(".");

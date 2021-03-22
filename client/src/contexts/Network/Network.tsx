@@ -26,7 +26,7 @@ export function NetworkProvider(props: PropsWithChildren<{}>) {
     pipe(
       webSocket,
       foldWebSocketState(
-        constVoid,
+        () => dispatch({ type: 'Reset' }),
         webSocket => {
           dispatch({ type: 'Connected' })
 

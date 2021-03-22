@@ -1,8 +1,17 @@
+import { Lazy } from 'fp-ts/function'
 import { Reader } from 'fp-ts/Reader'
-import { AckResponse } from '../../components/Home/domain'
+import { AckResponse, RefusalReason } from '../../components/Home/domain'
 
-interface InitialNetworkState {
-  type: 'Initial'
+interface ConnectingNetworkState {
+  type: 'Connecting'
+}
+
+interface AuthorizingNetworkState {
+  type: 'Authorizing'
+}
+
+interface WaitingForPeerNetworkState {
+  type: 'WaitingForPeer'
 }
 
 interface HandshakingNetworkState {
@@ -19,30 +28,53 @@ interface OperatingNetworkState {
   lastMessageSentAt: Date
 }
 
-export type NetworkState =
-  | InitialNetworkState
-  | HandshakingNetworkState
-  | OperatingNetworkState
-
-export function foldNetworkState<T>(
-  whenInitial: Reader<InitialNetworkState, T>,
-  whenHandshaking: Reader<HandshakingNetworkState, T>,
-  whenOperating: Reader<OperatingNetworkState, T>
-): Reader<NetworkState, T> {
-  return state => {
-    switch (state.type) {
-      case 'Initial':
-        return whenInitial(state)
-      case 'Handshaking':
-        return whenHandshaking(state)
-      case 'Operating':
-        return whenOperating(state)
-    }
-  }
+interface ErrorState {
+  type: 'Error'
+  reason: RefusalReason
+  message: string
 }
 
-interface StartHandshakingAction {
-  type: 'StartHandshaking'
+export type NetworkState =
+  | ConnectingNetworkState
+  | AuthorizingNetworkState
+  | WaitingForPeerNetworkState
+  | HandshakingNetworkState
+  | OperatingNetworkState
+  | ErrorState
+
+export function foldNetworkState<T>(
+  matches: {
+    [k in NetworkState['type']]: Reader<Extract<NetworkState, { type: k }>, T>
+  }
+): Reader<NetworkState, T> {
+  return state => matches[state.type](state as any)
+}
+
+export function foldPartialNetworkState<T>(
+  matches: Partial<
+    {
+      [k in NetworkState['type']]: Reader<Extract<NetworkState, { type: k }>, T>
+    }
+  >,
+  defaultValue: Lazy<T>
+): Reader<NetworkState, T> {
+  return state => matches[state.type]?.(state as any) ?? defaultValue()
+}
+
+interface ConnectionAction {
+  type: 'Connected'
+}
+
+interface AuthorizationAction {
+  type: 'Authorized'
+}
+
+interface PeerConnectedAction {
+  type: 'PeerConnected'
+}
+
+interface PeerDisconnectedAction {
+  type: 'PeerDisconnected'
 }
 
 interface RegisterAckAction {
@@ -59,41 +91,123 @@ interface ResetAction {
   type: 'Reset'
 }
 
+interface ErrorAction {
+  type: 'Error'
+  reason: RefusalReason
+  message: string
+}
+
 type NetworkAction =
-  | StartHandshakingAction
+  | ConnectionAction
+  | AuthorizationAction
+  | PeerConnectedAction
+  | PeerDisconnectedAction
   | RegisterAckAction
   | StartOperatingAction
   | ResetAction
+  | ErrorAction
 
 export function networkReducer(
   state: NetworkState,
   action: NetworkAction
 ): NetworkState {
   switch (state.type) {
-    case 'Initial':
+    case 'Connecting':
       switch (action.type) {
-        case 'StartHandshaking':
+        case 'Connected':
+          return {
+            type: 'Authorizing'
+          }
+        case 'Authorized':
+          return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return state
+        case 'RegisterAck':
+          return state
+        case 'StartOperating':
+          return state
+        case 'Error':
+          return {
+            type: 'Error',
+            reason: action.reason,
+            message: action.message
+          }
+        case 'Reset':
+          return state
+      }
+    case 'Authorizing':
+      switch (action.type) {
+        case 'Connected':
+          return state
+        case 'Authorized':
+          return {
+            type: 'WaitingForPeer'
+          }
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return state
+        case 'RegisterAck':
+          return state
+        case 'StartOperating':
+          return state
+        case 'Error':
+          return {
+            type: 'Error',
+            reason: action.reason,
+            message: action.message
+          }
+        case 'Reset':
+          return state
+      }
+    case 'WaitingForPeer':
+      switch (action.type) {
+        case 'Connected':
+          return state
+        case 'Authorized':
+          return state
+        case 'PeerConnected':
           return {
             type: 'Handshaking',
             receivedMessagesCount: 0,
             averageRTT: 0,
             lastMessageSentAt: new Date(0)
           }
+        case 'PeerDisconnected':
+          return state
         case 'RegisterAck':
           return state
         case 'StartOperating':
           return state
+        case 'Error':
+          return {
+            type: 'Error',
+            reason: action.reason,
+            message: action.message
+          }
         case 'Reset':
           return state
       }
     case 'Handshaking':
       switch (action.type) {
-        case 'StartHandshaking':
+        case 'Connected':
           return state
+        case 'Authorized':
+          return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return {
+            type: 'WaitingForPeer'
+          }
         case 'RegisterAck':
           const lastMessageRTT =
-            action.nextHandshakingMessageSentAt.getTime() -
-            state.lastMessageSentAt.getTime()
+            state.lastMessageSentAt.getTime() === 0
+              ? 0
+              : action.nextHandshakingMessageSentAt.getTime() -
+                state.lastMessageSentAt.getTime()
 
           const newReceivedMessagesCount = state.receivedMessagesCount + 1
 
@@ -113,22 +227,63 @@ export function networkReducer(
             averageRTT: state.averageRTT,
             lastMessageSentAt: state.lastMessageSentAt
           }
+        case 'Error':
+          return {
+            type: 'Error',
+            reason: action.reason,
+            message: action.message
+          }
         case 'Reset':
           return {
-            type: 'Initial'
+            type: 'Connecting'
           }
       }
     case 'Operating':
       switch (action.type) {
-        case 'StartHandshaking':
+        case 'Connected':
+          return state
+        case 'Authorized':
+          return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
+          return {
+            type: 'WaitingForPeer'
+          }
+        case 'RegisterAck':
+          return state
+        case 'StartOperating':
+          return state
+        case 'Error':
+          return {
+            type: 'Error',
+            reason: action.reason,
+            message: action.message
+          }
+        case 'Reset':
+          return {
+            type: 'Connecting'
+          }
+      }
+    case 'Error':
+      switch (action.type) {
+        case 'Connected':
+          return state
+        case 'Authorized':
+          return state
+        case 'PeerConnected':
+          return state
+        case 'PeerDisconnected':
           return state
         case 'RegisterAck':
           return state
         case 'StartOperating':
           return state
+        case 'Error':
+          return state
         case 'Reset':
           return {
-            type: 'Initial'
+            type: 'Connecting'
           }
       }
   }

@@ -1,36 +1,25 @@
-import { Button, Result, Timeline } from 'antd'
-import { pipe } from 'fp-ts/function'
-import { useEffect } from 'react'
-import { useAccount } from '../../contexts/Account/Account'
+import { Timeline } from 'antd'
+import { constNull, pipe } from 'fp-ts/function'
 import { useNetwork } from '../../contexts/Network/Network'
 import { foldNetworkState } from '../../contexts/Network/NetworkState'
-import { foldRefusalReason } from './domain'
-import { foldHomePageState, HomePageState } from './HomePageState'
 
-interface Props {
-  state: HomePageState
-}
+export function HandshakeTimeline() {
+  const network = useNetwork()
 
-export function HandshakeTimeline(props: Props) {
-  const { dispatchAccountAction } = useAccount()
-  const { networkState, startHandshaking } = useNetwork()
+  const step1 = () => 'Connecting'
+  const step2 = () => 'Authorizing'
+  const step3 = () => 'Waiting for robot'
 
-  const steps = [
-    'Authorizing',
-    'Waiting for robot',
-    'Establishing connection' +
-      pipe(
-        networkState,
-        foldNetworkState(
-          () => '',
-          state => {
-            const rtt = (state.averageRTT / 1000).toFixed(3)
-            return ` (${state.receivedMessagesCount}%), average RTT: ${rtt} seconds`
-          },
-          () => ''
-        )
-      )
-  ]
+  const step4 = () => {
+    if (network.type === 'Handshaking') {
+      const rtt = (network.averageRTT / 1000).toFixed(3)
+      return `Establishing connection (${network.receivedMessagesCount}%), average RTT: ${rtt} seconds`
+    } else {
+      return 'Establishing connection'
+    }
+  }
+
+  const steps = [step1(), step2(), step3(), step4()]
 
   const createTimeline = (currentStep: number) => (
     <Timeline pending={steps[currentStep]}>
@@ -40,45 +29,15 @@ export function HandshakeTimeline(props: Props) {
     </Timeline>
   )
 
-  useEffect(() => {
-    if (props.state.type === 'Handshaking' && networkState.type === 'Initial') {
-      startHandshaking()
-    }
-  }, [props.state, networkState, startHandshaking])
-
   return pipe(
-    props.state,
-    foldHomePageState(
-      () => createTimeline(0),
-      () => createTimeline(1),
-      () => createTimeline(2),
-      response =>
-        pipe(
-          response.reason,
-          foldRefusalReason(
-            () => (
-              <Result
-                status="error"
-                title="Connection refused"
-                subTitle={response.message}
-              />
-            ),
-            () => (
-              <Result
-                status="error"
-                title="Invalid credentials"
-                subTitle={response.message}
-                extra={[
-                  <Button
-                    onClick={() => dispatchAccountAction({ type: 'Logout' })}
-                  >
-                    Logout
-                  </Button>
-                ]}
-              />
-            )
-          )
-        )
-    )
+    network,
+    foldNetworkState({
+      Connecting: () => createTimeline(0),
+      Authorizing: () => createTimeline(1),
+      WaitingForPeer: () => createTimeline(2),
+      Handshaking: () => createTimeline(3),
+      Operating: constNull,
+      Error: constNull
+    })
   )
 }

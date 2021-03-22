@@ -101,3 +101,11 @@ export const Response = t.union(
   'Response'
 )
 export type Response = t.TypeOf<typeof Response>
+
+export function foldResponse<T>(
+  matches: {
+    [k in Response['type']]: Reader<Extract<Response, { type: k }>, T>
+  }
+): Reader<Response, T> {
+  return response => matches[response.type](response as any)
+}

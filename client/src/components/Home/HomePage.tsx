@@ -1,61 +1,56 @@
-import { Layout, Result } from 'antd'
-import { option } from 'fp-ts'
-import { constVoid, pipe } from 'fp-ts/function'
-import { useEffect, useReducer } from 'react'
-import { foldAccount, useAccount } from '../../contexts/Account/Account'
-import { useWebSocket } from '../../contexts/WebSocket/WebSocket'
-import { foldWebSocketState } from '../../contexts/WebSocket/WebSocketState'
-import { homePageReducer } from './HomePageState'
+import { Button, Layout, Result } from 'antd'
+import { pipe } from 'fp-ts/function'
+import { useAccount } from '../../contexts/Account/Account'
 import { HandshakeTimeline } from './HandshakeTimeline'
+import { useNetwork } from '../../contexts/Network/Network'
+import { foldNetworkState } from '../../contexts/Network/NetworkState'
+import { UI } from './UI'
+import { foldRefusalReason } from './domain'
 
 export default function HomePage() {
-  const { account } = useAccount()
-  const [state, dispatch] = useReducer(homePageReducer, { type: 'Initial' })
-  const webSocket = useWebSocket()
-
-  useEffect(() => {
-    pipe(
-      webSocket,
-      foldWebSocketState(
-        () => dispatch({ type: 'Reset' }),
-        webSocket =>
-          pipe(
-            webSocket.response,
-            option.fold(
-              () =>
-                pipe(
-                  account,
-                  foldAccount(constVoid, account =>
-                    webSocket.sendMessage({
-                      type: 'Authorization',
-                      from: 'UI',
-                      accessToken: account.accessToken
-                    })
-                  )
-                ),
-              dispatch
-            )
-          ),
-        () => dispatch({ type: 'Reset' })
-      )
-    )
-  }, [webSocket, account])
+  const network = useNetwork()
+  const { dispatchAccountAction } = useAccount()
 
   return (
     <Layout.Content>
       {pipe(
-        webSocket,
-        foldWebSocketState(
-          () => <HandshakeTimeline state={state} />,
-          () => <HandshakeTimeline state={state} />,
-          () => (
-            <Result
-              status="error"
-              title="Failed to connect to server"
-              subTitle="If you know how to do it, start the server, then try reloading the page"
-            />
-          )
-        )
+        network,
+        foldNetworkState({
+          Connecting: () => <HandshakeTimeline />,
+          Authorizing: () => <HandshakeTimeline />,
+          WaitingForPeer: () => <HandshakeTimeline />,
+          Handshaking: () => <HandshakeTimeline />,
+          Operating: () => <UI />,
+          Error: error =>
+            pipe(
+              error.reason,
+              foldRefusalReason(
+                () => (
+                  <Result
+                    status="error"
+                    title="Connection refused"
+                    subTitle={error.message}
+                  />
+                ),
+                () => (
+                  <Result
+                    status="error"
+                    title="Invalid credentials"
+                    subTitle={error.message}
+                    extra={[
+                      <Button
+                        onClick={() =>
+                          dispatchAccountAction({ type: 'Logout' })
+                        }
+                      >
+                        Logout
+                      </Button>
+                    ]}
+                  />
+                )
+              )
+            )
+        })
       )}
     </Layout.Content>
   )

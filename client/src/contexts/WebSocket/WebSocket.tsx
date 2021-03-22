@@ -8,7 +8,7 @@ import {
   useReducer,
   useState
 } from 'react'
-import { Message, Response } from '../../components/Home/domain'
+import { Message, Response } from '../../globalDomain'
 import { refreshToken } from '../../useApi'
 import { useAccount } from '../Account/Account'
 import { webSocketReducer, WebSocketState } from './WebSocketState'

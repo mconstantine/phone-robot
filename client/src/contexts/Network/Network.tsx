@@ -1,4 +1,4 @@
-import { constVoid, pipe } from 'fp-ts/function'
+import { pipe } from 'fp-ts/function'
 import {
   createContext,
   PropsWithChildren,
@@ -11,7 +11,7 @@ import { useWebSocket } from '../WebSocket/WebSocket'
 import { foldWebSocketState } from '../WebSocket/WebSocketState'
 import { option } from 'fp-ts'
 import { foldAccount, useAccount } from '../Account/Account'
-import { foldResponse } from '../../components/Home/domain'
+import { foldResponse } from '../../globalDomain'
 
 const NetworkContext = createContext<NetworkState>({
   type: 'Connecting'
@@ -19,7 +19,14 @@ const NetworkContext = createContext<NetworkState>({
 
 export function NetworkProvider(props: PropsWithChildren<{}>) {
   const webSocket = useWebSocket()
-  const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
+  // const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
+  const [state, dispatch] = useReducer(networkReducer, {
+    type: 'Operating',
+    receivedMessagesCount: 100,
+    averageRTT: 150,
+    lastMessageSentAt: new Date()
+  }) // FIXME:
+
   const { account } = useAccount()
 
   useEffect(() => {

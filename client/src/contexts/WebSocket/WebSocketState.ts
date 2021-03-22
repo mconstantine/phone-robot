@@ -1,7 +1,7 @@
 import { Reader } from 'fp-ts/Reader'
 import { Option } from 'fp-ts/Option'
-import { Message, Response } from '../../components/Home/domain'
 import { option } from 'fp-ts'
+import { Message, Response } from '../../globalDomain'
 
 interface ClosedWebSocketState {
   type: 'Closed'

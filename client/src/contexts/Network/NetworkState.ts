@@ -1,6 +1,6 @@
 import { Lazy } from 'fp-ts/function'
 import { Reader } from 'fp-ts/Reader'
-import { AckResponse, RefusalReason } from '../../components/Home/domain'
+import { AckResponse, RefusalReason } from '../../globalDomain'
 
 interface ConnectingNetworkState {
   type: 'Connecting'

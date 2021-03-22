@@ -5,7 +5,7 @@ import { HandshakeTimeline } from './HandshakeTimeline'
 import { useNetwork } from '../../contexts/Network/Network'
 import { foldNetworkState } from '../../contexts/Network/NetworkState'
 import { UI } from './UI'
-import { foldRefusalReason } from './domain'
+import { foldRefusalReason } from '../../globalDomain'
 
 export default function HomePage() {
   const network = useNetwork()

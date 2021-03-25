@@ -1,5 +1,6 @@
 import { option } from 'fp-ts'
 import { constVoid, pipe } from 'fp-ts/function'
+import { Reader } from 'fp-ts/Reader'
 import { Option } from 'fp-ts/Option'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
@@ -12,7 +13,17 @@ interface Point {
   y: number
 }
 
-export function Control() {
+export interface PolarPoint {
+  distance: number
+  angle: number
+}
+
+interface Props {
+  onUpdate: Reader<PolarPoint, unknown>
+}
+
+export function Control(props: Props) {
+  const { onUpdate } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -24,6 +35,7 @@ export function Control() {
     Option<Point>
   >(option.none)
 
+  // On resize
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
@@ -51,6 +63,7 @@ export function Control() {
     }
   }, [])
 
+  // On mouse down / touch start
   useLayoutEffect(() => {
     if (!canvasRef.current) {
       return
@@ -122,6 +135,7 @@ export function Control() {
     }
   }, [])
 
+  // On drag
   useEffect(() => {
     const canvas = canvasRef.current
 
@@ -187,6 +201,7 @@ export function Control() {
     }
   }, [movementStartPoint])
 
+  // On mouse up / touch end
   useLayoutEffect(() => {
     const stop = () => {
       pipe(
@@ -245,6 +260,7 @@ export function Control() {
     }
   }, [movementStartPoint, currentMovementPoint])
 
+  // Call to render
   useEffect(() => {
     const canvas = canvasRef.current
 
@@ -252,14 +268,29 @@ export function Control() {
       return
     }
 
-    render(
-      canvas,
-      pipe(
-        currentMovementPoint,
-        option.getOrElse(() => ({ x: 0, y: 0 }))
-      )
+    pipe(
+      currentMovementPoint,
+      option.getOrElse(() => ({ x: 0, y: 0 })),
+      movement => {
+        const controlPosition = render(canvas, movement)
+
+        pipe(
+          controlPosition,
+          option.fold(constVoid, position => {
+            let angle = Math.round((position.angle / Math.PI) * 180)
+
+            if (angle < 0) {
+              angle = 360 + angle
+            } else if (angle === -0) {
+              angle = 0
+            }
+
+            onUpdate({ distance: position.distance, angle })
+          })
+        )
+      }
     )
-  }, [currentMovementPoint])
+  }, [currentMovementPoint, onUpdate])
 
   return (
     <div className="control" ref={containerRef}>
@@ -280,11 +311,14 @@ function ease(x: number) {
   return x === 1 ? 1 : 1 - Math.pow(2, -10 * x)
 }
 
-function render(canvas: HTMLCanvasElement, currentMovement: Point) {
+function render(
+  canvas: HTMLCanvasElement,
+  currentMovement: Point
+): Option<PolarPoint> {
   const context = canvas.getContext('2d')
 
   if (!context) {
-    return
+    return option.none
   }
 
   const width = canvas.width
@@ -393,4 +427,6 @@ function render(canvas: HTMLCanvasElement, currentMovement: Point) {
   context.beginPath()
   context.arc(x, y, getControlRadius(width), 0, 2 * Math.PI)
   context.fill()
+
+  return option.some({ distance: distance / maxRadius, angle })
 }

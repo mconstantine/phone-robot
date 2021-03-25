@@ -1,12 +1,26 @@
 import { Layout, Typography } from 'antd'
 import { constNull, pipe } from 'fp-ts/function'
+import { useEffect, useState } from 'react'
 import { useNetwork } from '../../../contexts/Network/Network'
 import { foldPartialNetworkState } from '../../../contexts/Network/NetworkState'
-import { Control } from './Control'
+import { Control, PolarPoint } from './Control'
 import './UI.less'
 
 export function UI() {
   const network = useNetwork()
+
+  const [
+    currentControlPosition,
+    setCurrentControlPosition
+  ] = useState<PolarPoint>({
+    distance: 0,
+    angle: 0
+  })
+
+  useEffect(() => {
+    // TODO: send this to robot
+    console.log(currentControlPosition)
+  }, [currentControlPosition])
 
   return pipe(
     network,
@@ -24,7 +38,7 @@ export function UI() {
                   {averageRTTLabel}
                 </Typography.Text>
               </div>
-              <Control />
+              <Control onUpdate={setCurrentControlPosition} />
             </Layout.Content>
           )
         }

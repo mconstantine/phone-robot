@@ -1,4 +1,4 @@
-import { constVoid, pipe } from 'fp-ts/function'
+import { pipe } from 'fp-ts/function'
 import {
   createContext,
   PropsWithChildren,
@@ -19,22 +19,14 @@ const NetworkContext = createContext<NetworkState>({
 
 export function NetworkProvider(props: PropsWithChildren<{}>) {
   const webSocket = useWebSocket()
-  // const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
-  const [state, dispatch] = useReducer(networkReducer, {
-    type: 'Operating',
-    receivedMessagesCount: 100,
-    averageRTT: 150,
-    lastMessageSentAt: new Date()
-  }) // FIXME:
-
+  const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
   const { account } = useAccount()
 
   useEffect(() => {
     pipe(
       webSocket,
       foldWebSocketState(
-        // () => dispatch({ type: 'Reset' }),
-        constVoid, // FIXME:
+        () => dispatch({ type: 'Reset' }),
         webSocket => {
           dispatch({ type: 'Connected' })
 

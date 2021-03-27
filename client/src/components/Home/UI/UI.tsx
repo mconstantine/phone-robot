@@ -1,25 +1,40 @@
 import { Layout, Typography } from 'antd'
-import { constNull, pipe } from 'fp-ts/function'
+import { option } from 'fp-ts'
+import { constNull, constVoid, pipe } from 'fp-ts/function'
+import { Option } from 'fp-ts/Option'
 import { useEffect, useState } from 'react'
 import { useNetwork } from '../../../contexts/Network/Network'
 import { foldPartialNetworkState } from '../../../contexts/Network/NetworkState'
-import { Control, PolarPoint } from './Control'
+import { Control } from './Control'
+import { PolarPoint } from './useCanvas'
 import './UI.less'
 
 export function UI() {
   const network = useNetwork()
 
-  const [
-    currentControlPosition,
-    setCurrentControlPosition
-  ] = useState<PolarPoint>({
-    distance: 0,
-    angle: 0
-  })
+  const [currentControlPosition, setCurrentControlPosition] = useState<
+    Option<PolarPoint>
+  >(option.none)
 
   useEffect(() => {
     // TODO: send this to robot
-    console.log(currentControlPosition)
+    pipe(
+      currentControlPosition,
+      option.fold(constVoid, position => {
+        let angle = Math.round((position.angle / Math.PI) * 180)
+
+        if (angle < 0) {
+          angle = 360 + angle
+        } else if (angle === -0) {
+          angle = 0
+        }
+
+        // console.log({
+        //   distance: position.distance,
+        //   angle
+        // })
+      })
+    )
   }, [currentControlPosition])
 
   return pipe(
@@ -40,7 +55,10 @@ export function UI() {
                   {averageRTTLabel}
                 </Typography.Text>
               </div>
-              <Control onUpdate={setCurrentControlPosition} />
+              <Control
+                position={currentControlPosition}
+                onChange={setCurrentControlPosition}
+              />
             </Layout.Content>
           )
         }

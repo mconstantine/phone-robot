@@ -1,164 +1,49 @@
-import { option } from 'fp-ts'
+import { boolean, option } from 'fp-ts'
 import { constVoid, pipe } from 'fp-ts/function'
 import { Reader } from 'fp-ts/Reader'
 import { Option } from 'fp-ts/Option'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  CanvasUtils,
+  CartesianPoint,
+  dip,
+  PolarPoint,
+  useCanvas
+} from './useCanvas'
 
 const TRACES_COLOR = '#442a11'
 const CONTROL_COLOR = '#f3b765'
 const RETURN_ANIMATION_DURATION = 250
 
-interface Point {
-  x: number
-  y: number
-}
-
-export interface PolarPoint {
-  distance: number
-  angle: number
-}
-
 interface Props {
-  onUpdate: Reader<PolarPoint, unknown>
+  position: Option<PolarPoint>
+  onChange: Reader<Option<PolarPoint>, unknown>
 }
 
 export function Control(props: Props) {
-  const { onUpdate } = props
+  const { position, onChange } = props
+  const [isMoving, setIsMoving] = useState(false)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  const [movementStartPoint, setMovementStartPoint] = useState<Option<Point>>(
-    option.none
-  )
-
-  const [currentMovementPoint, setCurrentMovementPoint] = useState<
-    Option<Point>
-  >(option.none)
-
-  // On resize
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current
-    const container = containerRef.current
-
-    if (!canvas || !container) {
-      console.error('resize: unable to access canvas and/or container')
-      console.log('canvas', canvas)
-      console.log('container', container)
-
-      return
-    }
-
-    const resizeCanvas = () => {
-      canvas.style.width = container.clientWidth + 'px'
-      canvas.style.height = container.clientHeight + 'px'
-      canvas.width = dip(container.clientWidth)
-      canvas.height = dip(container.clientHeight)
-    }
-
-    resizeCanvas()
-    window.addEventListener('resize', resizeCanvas)
-
-    return () => {
-      window.removeEventListener('resize', resizeCanvas)
-    }
-  }, [])
+  const utils = useCanvas(containerRef, canvasRef)
 
   // On mouse down / touch start
   useLayoutEffect(() => {
-    if (!canvasRef.current) {
-      return
-    }
-
-    const canvas = canvasRef.current
-    const canvasBoundingBox = canvas.getBoundingClientRect()
-
-    const onMovementStart = (e: MouseEvent | TouchEvent) => {
-      let clientX = -1
-      let clientY = -1
-      let x = -1
-      let y = -1
-
-      if (e.type === 'mousedown') {
-        const event = e as MouseEvent
-
-        clientX = event.clientX
-        clientY = event.clientY
-        x = dip(event.clientX - canvasBoundingBox.x)
-        y = dip(event.clientY - canvasBoundingBox.y)
-      } else if (e.type === 'touchstart') {
-        const event = e as TouchEvent
-
-        if (event.touches.length !== 1) {
-          return
-        }
-
-        const touch = event.touches.item(0)!
-
-        clientX = touch.clientX
-        clientY = touch.clientY
-        x = dip(touch.clientX - canvasBoundingBox.x)
-        y = dip(touch.clientY - canvasBoundingBox.y)
-      } else {
-        return
-      }
-
-      // The user clicked the control if the distance between the clicked point and the center is lower
-      // than the radius of the control. The square root part of the pythagorean theorem are removed
-      // from both sides of the equation
-      const clickDistanceFromCenter =
-        Math.pow(canvas.width / 2 - x, 2) + Math.pow(canvas.height / 2 - y, 2)
-
-      const controlRadiusSquared = Math.pow(getControlRadius(canvas.width), 2)
-
-      const isClickingControl =
-        controlRadiusSquared - clickDistanceFromCenter > 0
-
-      if (isClickingControl) {
-        e.preventDefault()
-        e.stopPropagation()
-
-        setMovementStartPoint(
-          option.some({
-            x: clientX,
-            y: clientY
-          })
-        )
-      }
-    }
-
-    canvas.addEventListener('mousedown', onMovementStart)
-    canvas.addEventListener('touchstart', onMovementStart)
-
-    return () => {
-      canvas.removeEventListener('mousedown', onMovementStart)
-      canvas.removeEventListener('touchstart', onMovementStart)
-    }
-  }, [])
-
-  // On drag
-  useEffect(() => {
-    const canvas = canvasRef.current
-
-    if (!canvas) {
-      return
-    }
-
-    const onMovement = (e: MouseEvent | TouchEvent) => {
+    const onMovementStart = (e: MouseEvent | TouchEvent) =>
       pipe(
-        movementStartPoint,
-        option.fold(constVoid, startPoint => {
-          e.preventDefault()
-          e.stopPropagation()
+        utils,
+        option.fold(constVoid, utils => {
+          let clickPosition: CartesianPoint
 
-          let clientX = -1
-          let clientY = -1
-
-          if (e.type === 'mousemove') {
+          if (e.type === 'mousedown') {
             const event = e as MouseEvent
 
-            clientX = event.clientX
-            clientY = event.clientY
-          } else if (e.type === 'touchmove') {
+            clickPosition = {
+              x: dip(event.clientX - utils.left),
+              y: dip(event.clientY - utils.top)
+            }
+          } else if (e.type === 'touchstart') {
             const event = e as TouchEvent
 
             if (event.touches.length !== 1) {
@@ -167,23 +52,98 @@ export function Control(props: Props) {
 
             const touch = event.touches.item(0)!
 
-            clientX = touch.clientX
-            clientY = touch.clientY
+            clickPosition = {
+              x: dip(touch.clientX - utils.left),
+              y: dip(touch.clientY - utils.top)
+            }
+          } else {
+            return
           }
 
-          setCurrentMovementPoint(
-            option.some({
-              x: dip(clientX - startPoint.x),
-              y: dip(clientY - startPoint.y)
+          const polarClickPosition = toPolar(utils.canvasCenter, clickPosition)
+
+          const isClickingControl =
+            polarClickPosition.distance <= utils.controlRadius
+
+          if (isClickingControl) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMoving(true)
+          }
+        })
+      )
+
+    pipe(
+      utils,
+      option.fold(constVoid, ({ canvas }) => {
+        canvas.addEventListener('mousedown', onMovementStart)
+        canvas.addEventListener('touchstart', onMovementStart)
+      })
+    )
+
+    return () => {
+      pipe(
+        utils,
+        option.fold(constVoid, ({ canvas }) => {
+          canvas.removeEventListener('mousedown', onMovementStart)
+          canvas.removeEventListener('touchstart', onMovementStart)
+        })
+      )
+    }
+  }, [utils])
+
+  // On drag
+  useEffect(() => {
+    const onMovement = (e: MouseEvent | TouchEvent) => {
+      pipe(
+        utils,
+        option.fold(constVoid, utils =>
+          pipe(
+            isMoving,
+            boolean.fold(constVoid, () => {
+              let position: CartesianPoint
+
+              if (e.type === 'mousemove') {
+                const event = e as MouseEvent
+
+                position = {
+                  x: dip(event.clientX - utils.left),
+                  y: dip(event.clientY - utils.top)
+                }
+              } else if (e.type === 'touchmove') {
+                const event = e as TouchEvent
+
+                if (event.touches.length !== 1) {
+                  return
+                }
+
+                const touch = event.touches.item(0)!
+
+                position = {
+                  x: dip(touch.clientX - utils.left),
+                  y: dip(touch.clientY - utils.top)
+                }
+              } else {
+                return
+              }
+
+              const polarPosition = toPolar(utils.canvasCenter, position)
+
+              onChange(
+                option.some({
+                  distance: Math.min(polarPosition.distance, utils.maxRadius),
+                  angle: polarPosition.angle
+                })
+              )
             })
           )
-        })
+        )
       )
     }
 
     pipe(
-      movementStartPoint,
-      option.fold(
+      isMoving,
+      boolean.fold(
         () => {
           document.body.removeEventListener('mousemove', onMovement)
           document.body.removeEventListener('touchmove', onMovement)
@@ -199,18 +159,18 @@ export function Control(props: Props) {
       document.body.removeEventListener('mousemove', onMovement)
       document.body.removeEventListener('touchmove', onMovement)
     }
-  }, [movementStartPoint])
+  }, [isMoving, utils, onChange])
 
   // On mouse up / touch end
   useLayoutEffect(() => {
     const stop = () => {
       pipe(
-        currentMovementPoint,
-        option.fold(constVoid, currentMovementPoint => {
-          setMovementStartPoint(option.none)
+        position,
+        option.fold(constVoid, position => {
+          setIsMoving(false)
 
-          const startX = currentMovementPoint.x
-          const startY = currentMovementPoint.y
+          const startDistance = position.distance
+          const angle = position.angle
           const startTime = Date.now()
 
           const step = () => {
@@ -222,15 +182,17 @@ export function Control(props: Props) {
                 : currentTime / RETURN_ANIMATION_DURATION
             )
 
-            setCurrentMovementPoint(
+            onChange(
               option.some({
-                x: startX * (1 - amount),
-                y: startY * (1 - amount)
+                distance: startDistance * (1 - amount),
+                angle
               })
             )
 
             if (currentTime <= RETURN_ANIMATION_DURATION) {
               requestAnimationFrame(step)
+            } else {
+              onChange(option.none)
             }
           }
 
@@ -241,8 +203,8 @@ export function Control(props: Props) {
 
     const onMovementEnd = (e: MouseEvent | TouchEvent) => {
       pipe(
-        movementStartPoint,
-        option.fold(constVoid, () => {
+        isMoving,
+        boolean.fold(constVoid, () => {
           e.preventDefault()
           e.stopPropagation()
 
@@ -258,39 +220,21 @@ export function Control(props: Props) {
       document.body.removeEventListener('mouseup', onMovementEnd)
       document.body.removeEventListener('touchend', onMovementEnd)
     }
-  }, [movementStartPoint, currentMovementPoint])
+  }, [isMoving, position, utils, onChange])
 
   // Call to render
   useEffect(() => {
-    const canvas = canvasRef.current
-
-    if (!canvas) {
-      return
-    }
-
     pipe(
-      currentMovementPoint,
-      option.getOrElse(() => ({ x: 0, y: 0 })),
-      movement => {
-        const controlPosition = render(canvas, movement)
-
+      utils,
+      option.fold(constVoid, utils =>
         pipe(
-          controlPosition,
-          option.fold(constVoid, position => {
-            let angle = Math.round((position.angle / Math.PI) * 180)
-
-            if (angle < 0) {
-              angle = 360 + angle
-            } else if (angle === -0) {
-              angle = 0
-            }
-
-            onUpdate({ distance: position.distance, angle })
-          })
+          position,
+          option.getOrElse(() => ({ distance: 0, angle: 0 })),
+          position => render(utils, position)
         )
-      }
+      )
     )
-  }, [currentMovementPoint, onUpdate])
+  }, [utils, position])
 
   return (
     <div className="control" ref={containerRef}>
@@ -299,86 +243,78 @@ export function Control(props: Props) {
   )
 }
 
-function getControlRadius(canvasWidth: number) {
-  return Math.round(canvasWidth / 12)
-}
-
-function dip(pixelsCount: number) {
-  return pixelsCount * window.devicePixelRatio
-}
-
 function ease(x: number) {
   return x === 1 ? 1 : 1 - Math.pow(2, -10 * x)
 }
 
-function render(
-  canvas: HTMLCanvasElement,
-  currentMovement: Point
-): Option<PolarPoint> {
-  const context = canvas.getContext('2d')
-
-  if (!context) {
-    return option.none
-  }
-
-  const width = canvas.width
-  const height = canvas.height
-  const centerX = width / 2
-  const centerY = height / 2
-  const maxRadius = width / 3
+function render(utils: CanvasUtils, controlPosition: PolarPoint): void {
+  const {
+    context,
+    maxRadius,
+    canvasCenter: center,
+    width,
+    height,
+    controlRadius
+  } = utils
 
   context.clearRect(0, 0, width, height)
 
-  const bottomRightX =
-    centerX + centerX * 0.837 * Math.cos((45 * Math.PI) / 180)
-  const bottomRightY =
-    centerY + centerY * 0.837 * Math.sin((45 * Math.PI) / 180)
-  const bottomLeftX =
-    centerX + centerX * 0.837 * Math.cos((135 * Math.PI) / 180)
-  const bottomLeftY =
-    centerY + centerY * 0.837 * Math.sin((135 * Math.PI) / 180)
+  const bottomRight: CartesianPoint = {
+    x: center.x + center.x * 1.837 * Math.cos((45 * Math.PI) / 180),
+    y: center.y + center.y * 1.837 * Math.sin((45 * Math.PI) / 180)
+  }
 
-  const topLeftX = centerX + centerX * 0.837 * Math.cos((225 * Math.PI) / 180)
-  const topLeftY = centerY + centerY * 0.837 * Math.sin((225 * Math.PI) / 180)
-  const topRightX = centerX + centerX * 0.837 * Math.cos((315 * Math.PI) / 180)
-  const topRightY = centerY + centerY * 0.837 * Math.sin((315 * Math.PI) / 180)
+  const bottomLeft: CartesianPoint = {
+    x: center.x + center.x * 1.837 * Math.cos((135 * Math.PI) / 180),
+    y: center.y + center.y * 1.837 * Math.sin((135 * Math.PI) / 180)
+  }
+
+  const topLeft: CartesianPoint = {
+    x: center.x + center.x * 1.837 * Math.cos((225 * Math.PI) / 180),
+    y: center.y + center.y * 1.837 * Math.sin((225 * Math.PI) / 180)
+  }
+
+  const topRight: CartesianPoint = {
+    x: center.x + center.x * 1.837 * Math.cos((315 * Math.PI) / 180),
+    y: center.y + center.y * 1.837 * Math.sin((315 * Math.PI) / 180)
+  }
 
   context.fillStyle = TRACES_COLOR
   context.strokeStyle = TRACES_COLOR
 
   // NS trace
   context.beginPath()
-  context.moveTo(centerX - 1, 0)
-  context.lineTo(centerX + 1, 0)
-  context.lineTo(centerX + 1, height)
-  context.lineTo(centerX - 1, height)
+  context.moveTo(center.x - 1, 0)
+  context.lineTo(center.x + 1, 0)
+  context.lineTo(center.x + 1, height)
+  context.lineTo(center.x - 1, height)
   context.closePath()
   context.fill()
 
   // WE trace
   context.beginPath()
-  context.moveTo(0, centerY - 1)
-  context.lineTo(width, centerY - 1)
-  context.lineTo(width, centerY + 1)
-  context.lineTo(0, centerY + 1)
+  context.moveTo(0, center.y - 1)
+  context.lineTo(width, center.y - 1)
+  context.lineTo(width, center.y + 1)
+  context.lineTo(0, center.y + 1)
   context.closePath()
   context.fill()
 
   // NESW trace
   context.beginPath()
-  context.moveTo(topRightX - 1, topRightY - 1)
-  context.lineTo(topRightX + 1, topRightY + 1)
-  context.lineTo(bottomLeftX + 1, bottomLeftY + 1)
-  context.lineTo(bottomLeftX - 1, bottomLeftY - 1)
+  context.moveTo(topRight.x - 1, topRight.y - 1)
+  context.lineTo(topRight.x + 1, topRight.y + 1)
+  context.lineTo(bottomLeft.x + 1, bottomLeft.y + 1)
+  context.lineTo(bottomLeft.x - 1, bottomLeft.y - 1)
   context.closePath()
   context.fill()
 
   // NWSE trace
   context.beginPath()
-  context.moveTo(topLeftX - 1, topLeftY + 1)
-  context.lineTo(topLeftX + 1, topLeftY - 1)
-  context.lineTo(bottomRightX + 1, bottomRightY - 1)
-  context.lineTo(bottomRightX - 1, bottomRightY + 1)
+  context.moveTo(topLeft.x - 1, topLeft.y + 1)
+  context.lineTo(topLeft.x + 1, topLeft.y - 1)
+  context.lineTo(bottomRight.x + 1, bottomRight.y - 1)
+  context.lineTo(bottomRight.x - 1, bottomRight.y + 1)
   context.closePath()
   context.fill()
 
@@ -387,7 +323,7 @@ function render(
   context.lineWidth = width / 40
 
   context.beginPath()
-  context.arc(centerX, centerY, maxRadius, 0, 2 * Math.PI)
+  context.arc(center.x, center.y, maxRadius, 0, 2 * Math.PI)
   context.stroke()
 
   context.globalCompositeOperation = 'source-over'
@@ -398,13 +334,7 @@ function render(
   context.globalCompositeOperation = 'destination-out'
 
   context.beginPath()
-  context.arc(
-    centerX,
-    centerY,
-    getControlRadius(width) + width / 80,
-    0,
-    2 * Math.PI
-  )
+  context.arc(center.x, center.y, controlRadius + width / 80, 0, 2 * Math.PI)
 
   context.fill()
   context.globalCompositeOperation = 'source-over'
@@ -412,21 +342,28 @@ function render(
 
   context.fillStyle = CONTROL_COLOR
 
-  const movementX = currentMovement.x
-  const movementY = currentMovement.y
-  const angle = Math.atan2(movementY, movementX)
-
-  const distance = Math.min(
-    Math.sqrt(Math.pow(movementX, 2) + Math.pow(movementY, 2)),
-    maxRadius
-  )
-
-  const x = centerX + distance * Math.cos(angle)
-  const y = centerY + distance * Math.sin(angle)
+  const controlCenter = toCartesian(center, controlPosition)
 
   context.beginPath()
-  context.arc(x, y, getControlRadius(width), 0, 2 * Math.PI)
+  context.arc(controlCenter.x, controlCenter.y, controlRadius, 0, 2 * Math.PI)
   context.fill()
+}
 
-  return option.some({ distance: distance / maxRadius, angle })
+function toPolar(center: CartesianPoint, point: CartesianPoint): PolarPoint {
+  return {
+    distance: Math.sqrt(
+      Math.pow(point.x - center.x, 2) + Math.pow(point.y - center.y, 2)
+    ),
+    angle: Math.atan2(point.y - center.y, point.x - center.x)
+  }
+}
+
+function toCartesian(
+  center: CartesianPoint,
+  point: PolarPoint
+): CartesianPoint {
+  return {
+    x: center.x + point.distance * Math.cos(point.angle),
+    y: center.y + point.distance * Math.sin(point.angle)
+  }
 }

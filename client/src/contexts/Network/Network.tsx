@@ -68,7 +68,7 @@ export function NetworkProvider(props: PropsWithChildren<{}>) {
                 Ack: response => {
                   if (
                     state.type === 'Handshaking' &&
-                    state.receivedMessagesCount === 100
+                    state.receivedMessagesCount >= 99
                   ) {
                     return dispatch({ type: 'StartOperating' })
                   }

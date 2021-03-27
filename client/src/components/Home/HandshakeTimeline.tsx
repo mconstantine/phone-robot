@@ -12,7 +12,9 @@ export function HandshakeTimeline() {
 
   const step4 = () => {
     if (network.type === 'Handshaking') {
-      const rtt = (network.averageRTT / 1000).toFixed(3)
+      const avgRTT = (network.minRTT + network.maxRTT) / 2
+      const rtt = (avgRTT / 1000).toFixed(3)
+
       return `Establishing connection (${network.receivedMessagesCount}%), average RTT: ${rtt} seconds`
     } else {
       return 'Establishing connection'

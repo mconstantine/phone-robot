@@ -17,14 +17,15 @@ interface WaitingForPeerNetworkState {
 interface HandshakingNetworkState {
   type: 'Handshaking'
   receivedMessagesCount: number
-  averageRTT: number
+  minRTT: number
+  maxRTT: number
   lastMessageSentAt: Date
 }
 
 interface OperatingNetworkState {
   type: 'Operating'
-  receivedMessagesCount: number
-  averageRTT: number
+  minRTT: number
+  maxRTT: number
   lastMessageSentAt: Date
 }
 
@@ -172,7 +173,8 @@ export function networkReducer(
           return {
             type: 'Handshaking',
             receivedMessagesCount: 0,
-            averageRTT: 0,
+            minRTT: 0,
+            maxRTT: 0,
             lastMessageSentAt: new Date(0)
           }
         case 'PeerDisconnected':
@@ -209,22 +211,22 @@ export function networkReducer(
               : action.nextHandshakingMessageSentAt.getTime() -
                 state.lastMessageSentAt.getTime()
 
+          const minRTT = Math.min(state.minRTT, lastMessageRTT)
+          const maxRTT = Math.max(state.maxRTT, lastMessageRTT)
           const newReceivedMessagesCount = state.receivedMessagesCount + 1
 
           return {
             type: 'Handshaking',
             receivedMessagesCount: newReceivedMessagesCount,
-            averageRTT:
-              (state.averageRTT * state.receivedMessagesCount +
-                lastMessageRTT) /
-              newReceivedMessagesCount,
+            minRTT,
+            maxRTT,
             lastMessageSentAt: action.nextHandshakingMessageSentAt
           }
         case 'StartOperating':
           return {
             type: 'Operating',
-            receivedMessagesCount: state.receivedMessagesCount,
-            averageRTT: state.averageRTT,
+            minRTT: state.minRTT,
+            maxRTT: state.maxRTT,
             lastMessageSentAt: state.lastMessageSentAt
           }
         case 'Error':

@@ -27,9 +27,11 @@ export function UI() {
     foldPartialNetworkState(
       {
         Operating: state => {
-          const averageRTTLabel = `Average RTT: ${(
-            state.averageRTT / 1000
-          ).toFixed(3)} seconds`
+          const avgRTT = (state.minRTT + state.maxRTT) / 2
+
+          const averageRTTLabel = `Average RTT: ${(avgRTT / 1000).toFixed(
+            3
+          )} seconds`
 
           return (
             <Layout.Content className="UI">

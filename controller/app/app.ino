@@ -2,13 +2,16 @@
 #include "State.hpp"
 
 using namespace websockets2_generic;
+using std::max;
+using std::min;
 
 WebsocketsClient client;
 State currentState;
 String ackMessage;
 long lastMessageSentAt = 0;
-long receivedMessagesCount = 0;
-long averageRTT = 0;
+int receivedHandshakingMessagesCount = 0;
+long minRTT = 0;
+long maxRTT = 0;
 
 void setup()
 {
@@ -148,6 +151,7 @@ void loop()
       WiFi.end();
     }
 
+    receivedHandshakingMessagesCount = 0;
     currentState.setState(State::Initial);
   }
 }
@@ -160,6 +164,7 @@ void onWebsocketsEvent(WebsocketsEvent event, String data)
   }
   else if (event == WebsocketsEvent::ConnectionClosed)
   {
+    receivedHandshakingMessagesCount = 0;
     currentState.setState(State::Initial);
   }
   else if (event == WebsocketsEvent::GotPing)
@@ -200,32 +205,38 @@ void onWebsocketsMessage(WebsocketsMessage message)
   }
   else if (type == "PeerDisconnected")
   {
+    receivedHandshakingMessagesCount = 0;
     currentState.setState(State::Authorized);
   }
   else if (type == "Handshaking")
   {
-    const long newReceivedMessagesCount = receivedMessagesCount + 1;
+    receivedHandshakingMessagesCount++;
+
     const long now = millis();
 
     if (lastMessageSentAt != 0)
     {
       const long rtt = now - lastMessageSentAt;
-      averageRTT = ((averageRTT * receivedMessagesCount) + rtt) / newReceivedMessagesCount;
+
+      minRTT = min(minRTT, rtt);
+      maxRTT = max(maxRTT, rtt);
+
+      const long averageRTT = (minRTT + maxRTT) / 2.;
 
       SerialUSB.print("Received ");
-      SerialUSB.print(newReceivedMessagesCount);
+      SerialUSB.print(receivedHandshakingMessagesCount);
       SerialUSB.print(" messages. ");
       SerialUSB.print("Average RTT is ");
       SerialUSB.print(averageRTT);
       SerialUSB.println(".");
     }
 
-    receivedMessagesCount = newReceivedMessagesCount;
     sendAck();
     lastMessageSentAt = now;
 
-    if (receivedMessagesCount == 100)
+    if (receivedHandshakingMessagesCount >= 100)
     {
+      receivedHandshakingMessagesCount = 0;
       currentState.setState(State::Ready);
     }
   }

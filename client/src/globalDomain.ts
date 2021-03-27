@@ -13,6 +13,62 @@ export const PositiveInteger = t.brand(
 )
 export type PositiveInteger = t.TypeOf<typeof PositiveInteger>
 
+interface PercentageBrand {
+  readonly Percentage: unique symbol
+}
+export const Percentage = t.brand(
+  t.number,
+  (n): n is t.Branded<number, PercentageBrand> => n >= 0 && n <= 1,
+  'Percentage'
+)
+export type Percentage = t.TypeOf<typeof Percentage>
+
+function unsafePercentage(n: number): Percentage {
+  if (!Percentage.is(n)) {
+    throw new Error(`Called unsafePercentage with invalid number: ${n}`)
+  }
+
+  return n
+}
+
+export function getPercentage(fraction: number, whole: number): Percentage {
+  return unsafePercentage(fraction / whole)
+}
+
+interface DegreesAngleBrand {
+  readonly DegreesAngle: unique symbol
+}
+export const DegreesAngle = t.brand(
+  t.number,
+  (n): n is t.Branded<number, DegreesAngleBrand> => n >= 0 && n <= 360,
+  'DegreesAngle'
+)
+export type DegreesAngle = t.TypeOf<typeof DegreesAngle>
+
+function unsafeDegreesAngle(n: number): DegreesAngle {
+  if (!DegreesAngle.is(n)) {
+    throw new Error(`Called unsafeDegreesAngle with invalid number: ${n}`)
+  }
+
+  return n
+}
+
+export function degreesAngleFromRadians(radians: number): DegreesAngle {
+  let angle = Math.round((radians / Math.PI) * 180)
+
+  if (angle < 0) {
+    angle = 360 + angle
+  } else if (angle === -0) {
+    angle = 0
+  }
+
+  return unsafeDegreesAngle(angle)
+}
+
+export function radiansAngleFromDegrees(angle: DegreesAngle): number {
+  return (angle / 180) * Math.PI
+}
+
 const From = t.literal('UI')
 
 const AuthorizationMessage = t.type(
@@ -33,6 +89,12 @@ const HandshakingMessage = t.type(
   'HandshakingMessage'
 )
 type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
+
+export const Command = t.type({
+  speed: Percentage,
+  angle: DegreesAngle
+})
+export type Command = t.TypeOf<typeof Command>
 
 export const Message = t.union(
   [AuthorizationMessage, HandshakingMessage],

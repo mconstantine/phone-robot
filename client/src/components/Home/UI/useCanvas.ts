@@ -1,6 +1,12 @@
 import { option } from 'fp-ts'
 import { Option } from 'fp-ts/Option'
 import { RefObject, useLayoutEffect, useState } from 'react'
+import {
+  Command,
+  degreesAngleFromRadians,
+  getPercentage,
+  radiansAngleFromDegrees
+} from '../../../globalDomain'
 
 export interface CartesianPoint {
   x: number
@@ -10,6 +16,26 @@ export interface CartesianPoint {
 export interface PolarPoint {
   distance: number
   angle: number
+}
+
+export function polarPointFromCommand(
+  command: Command,
+  maxRadius: number
+): PolarPoint {
+  return {
+    distance: command.speed * maxRadius,
+    angle: radiansAngleFromDegrees(command.angle)
+  }
+}
+
+export function commandFromPolarPoint(
+  point: PolarPoint,
+  maxRadius: number
+): Command {
+  return {
+    speed: getPercentage(Math.min(point.distance, maxRadius), maxRadius),
+    angle: degreesAngleFromRadians(point.angle)
+  }
 }
 
 export interface CanvasUtils {

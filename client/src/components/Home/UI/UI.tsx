@@ -6,36 +6,17 @@ import { useEffect, useState } from 'react'
 import { useNetwork } from '../../../contexts/Network/Network'
 import { foldPartialNetworkState } from '../../../contexts/Network/NetworkState'
 import { Control } from './Control'
-import { PolarPoint } from './useCanvas'
 import './UI.less'
+import { Command } from '../../../globalDomain'
 
 export function UI() {
   const network = useNetwork()
-
-  const [currentControlPosition, setCurrentControlPosition] = useState<
-    Option<PolarPoint>
-  >(option.none)
+  const [command, setCommand] = useState<Option<Command>>(option.none)
 
   useEffect(() => {
     // TODO: send this to robot
-    pipe(
-      currentControlPosition,
-      option.fold(constVoid, position => {
-        let angle = Math.round((position.angle / Math.PI) * 180)
-
-        if (angle < 0) {
-          angle = 360 + angle
-        } else if (angle === -0) {
-          angle = 0
-        }
-
-        // console.log({
-        //   distance: position.distance,
-        //   angle
-        // })
-      })
-    )
-  }, [currentControlPosition])
+    pipe(command, option.fold(constVoid, console.log))
+  }, [command])
 
   return pipe(
     network,
@@ -55,10 +36,7 @@ export function UI() {
                   {averageRTTLabel}
                 </Typography.Text>
               </div>
-              <Control
-                position={currentControlPosition}
-                onChange={setCurrentControlPosition}
-              />
+              <Control command={command} onChange={setCommand} />
             </Layout.Content>
           )
         }

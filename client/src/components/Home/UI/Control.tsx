@@ -6,22 +6,26 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   CanvasUtils,
   CartesianPoint,
+  commandFromPolarPoint,
   dip,
   PolarPoint,
+  polarPointFromCommand,
   useCanvas
 } from './useCanvas'
+import { Command } from '../../../globalDomain'
+import { sequenceS } from 'fp-ts/Apply'
 
 const TRACES_COLOR = '#442a11'
 const CONTROL_COLOR = '#f3b765'
 const RETURN_ANIMATION_DURATION = 250
 
 interface Props {
-  position: Option<PolarPoint>
-  onChange: Reader<Option<PolarPoint>, unknown>
+  command: Option<Command>
+  onChange: Reader<Option<Command>, unknown>
 }
 
 export function Control(props: Props) {
-  const { position, onChange } = props
+  const { command, onChange } = props
   const [isMoving, setIsMoving] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -128,13 +132,12 @@ export function Control(props: Props) {
               }
 
               const polarPosition = toPolar(utils.canvasCenter, position)
-
-              onChange(
-                option.some({
-                  distance: Math.min(polarPosition.distance, utils.maxRadius),
-                  angle: polarPosition.angle
-                })
+              const command = commandFromPolarPoint(
+                polarPosition,
+                utils.maxRadius
               )
+
+              pipe(command, option.some, onChange)
             })
           )
         )
@@ -165,10 +168,12 @@ export function Control(props: Props) {
   useLayoutEffect(() => {
     const stop = () => {
       pipe(
-        position,
-        option.fold(constVoid, position => {
+        { command, utils },
+        sequenceS(option.option),
+        option.fold(constVoid, ({ command, utils }) => {
           setIsMoving(false)
 
+          const position = polarPointFromCommand(command, utils.maxRadius)
           const startDistance = position.distance
           const angle = position.angle
           const startTime = Date.now()
@@ -182,11 +187,15 @@ export function Control(props: Props) {
                 : currentTime / RETURN_ANIMATION_DURATION
             )
 
-            onChange(
-              option.some({
-                distance: startDistance * (1 - amount),
-                angle
-              })
+            const newPosition: PolarPoint = {
+              distance: startDistance * (1 - amount),
+              angle
+            }
+
+            pipe(
+              commandFromPolarPoint(newPosition, utils.maxRadius),
+              option.some,
+              onChange
             )
 
             if (currentTime <= RETURN_ANIMATION_DURATION) {
@@ -220,7 +229,7 @@ export function Control(props: Props) {
       document.body.removeEventListener('mouseup', onMovementEnd)
       document.body.removeEventListener('touchend', onMovementEnd)
     }
-  }, [isMoving, position, utils, onChange])
+  }, [isMoving, command, utils, onChange])
 
   // Call to render
   useEffect(() => {
@@ -228,13 +237,14 @@ export function Control(props: Props) {
       utils,
       option.fold(constVoid, utils =>
         pipe(
-          position,
+          command,
+          option.map(c => polarPointFromCommand(c, utils.maxRadius)),
           option.getOrElse(() => ({ distance: 0, angle: 0 })),
-          position => render(utils, position)
+          command => render(utils, command)
         )
       )
     )
-  }, [utils, position])
+  }, [utils, command])
 
   return (
     <div className="control" ref={containerRef}>

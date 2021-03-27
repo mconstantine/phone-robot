@@ -244,6 +244,8 @@ void onWebsocketsMessage(WebsocketsMessage message)
 
 void sendAck()
 {
+  SerialUSB.println("Responding.");
+
   bool success = client.send(ackMessage);
 
   if (!success)

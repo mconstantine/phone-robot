@@ -139,6 +139,7 @@ export class WebSocketClientHandler extends WebSocketHandler {
 
 export class WebSocketRobotHandler extends WebSocketHandler {
   private isRobotAlive: boolean = false
+  private latestRobotActivityTime = Date.now()
   private pingInterval: Option<NodeJS.Timeout> = option.none
   private pingTimeout: Option<NodeJS.Timeout> = option.none
 
@@ -185,6 +186,10 @@ export class WebSocketRobotHandler extends WebSocketHandler {
     })
   }
 
+  public registerAck() {
+    this.latestRobotActivityTime = Date.now()
+  }
+
   public reset() {
     console.log('Robot is out')
 
@@ -225,6 +230,10 @@ export class WebSocketRobotHandler extends WebSocketHandler {
   }
 
   private pingRobot() {
+    if (Date.now() - this.latestRobotActivityTime < 10000) {
+      return
+    }
+
     pipe(
       this.socket,
       option.fold(
@@ -236,7 +245,13 @@ export class WebSocketRobotHandler extends WebSocketHandler {
           socket.ping()
 
           this.pingTimeout = option.some(
-            setTimeout(() => this.checkRobot(), 10000)
+            setTimeout(() => {
+              if (Date.now() - this.latestRobotActivityTime < 10000) {
+                return
+              }
+
+              this.checkRobot()
+            }, 10000)
           )
         }
       )

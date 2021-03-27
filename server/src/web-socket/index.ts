@@ -79,7 +79,10 @@ export function initWebSocket(server: Server) {
                   foldActor(constVoid, () => robotHandler.reset())
                 ),
               () => robotHandler.forwardHandshakingMessage(),
-              () => clientHandler.forwardAckMessage()
+              () => {
+                robotHandler.registerAck()
+                clientHandler.forwardAckMessage()
+              }
             )
           )
         )

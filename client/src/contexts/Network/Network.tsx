@@ -139,15 +139,31 @@ export function NetworkProvider(props: PropsWithChildren<{}>) {
                 } else {
                   pipe(
                     state.command,
-                    option.fold(constVoid, command => {
-                      clearResponse()
-                      dispatch({ type: 'RegisterCommandSent' })
-                      sendMessage({
-                        type: 'Command',
-                        from: 'UI',
-                        command
-                      })
-                    })
+                    option.fold(
+                      () =>
+                        pipe(
+                          response,
+                          option.fold(
+                            constVoid,
+                            foldPartialResponse(
+                              {
+                                PeerDisconnected: () =>
+                                  dispatch({ type: 'PeerDisconnected' })
+                              },
+                              constVoid
+                            )
+                          )
+                        ),
+                      command => {
+                        clearResponse()
+                        dispatch({ type: 'RegisterCommandSent' })
+                        sendMessage({
+                          type: 'Command',
+                          from: 'UI',
+                          command
+                        })
+                      }
+                    )
                   )
                 }
               },

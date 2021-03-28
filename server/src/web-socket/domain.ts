@@ -54,6 +54,45 @@ const HandshakingMessage = t.type(
 )
 type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
 
+interface PercentageBrand {
+  readonly Percentage: unique symbol
+}
+export const Percentage = t.brand(
+  t.number,
+  (n): n is t.Branded<number, PercentageBrand> => n >= 0 && n <= 1,
+  'Percentage'
+)
+export type Percentage = t.TypeOf<typeof Percentage>
+
+interface DegreesAngleBrand {
+  readonly DegreesAngle: unique symbol
+}
+export const DegreesAngle = t.brand(
+  t.Int,
+  (n): n is t.Branded<t.Int, DegreesAngleBrand> => n >= 0 && n <= 360,
+  'DegreesAngle'
+)
+export type DegreesAngle = t.TypeOf<typeof DegreesAngle>
+
+export const Command = t.type(
+  {
+    speed: Percentage,
+    angle: DegreesAngle
+  },
+  'Command'
+)
+export type Command = t.TypeOf<typeof Command>
+
+const CommandMessage = t.type(
+  {
+    type: t.literal('Command'),
+    from: t.literal('UI'),
+    command: Command
+  },
+  'CommandMessage'
+)
+export type CommandMessage = t.TypeOf<typeof CommandMessage>
+
 const AckMessage = t.type(
   {
     type: t.literal('Ack'),
@@ -64,29 +103,21 @@ const AckMessage = t.type(
 type AckMessage = t.TypeOf<typeof AckMessage>
 
 export const Message = t.union(
-  [AuthorizationMessage, ResetMessage, HandshakingMessage, AckMessage],
+  [
+    AuthorizationMessage,
+    ResetMessage,
+    HandshakingMessage,
+    CommandMessage,
+    AckMessage
+  ],
   'Message'
 )
 export type Message = t.TypeOf<typeof Message>
 
 export function foldMessage<T>(
-  whenAuthorization: Reader<AuthorizationMessage, T>,
-  whenReset: Reader<ResetMessage, T>,
-  whenHandshaking: Reader<HandshakingMessage, T>,
-  whenAck: Reader<AckMessage, T>
+  matches: { [k in Message['type']]: Reader<Extract<Message, { type: k }>, T> }
 ): Reader<Message, T> {
-  return message => {
-    switch (message.type) {
-      case 'Authorization':
-        return whenAuthorization(message)
-      case 'Reset':
-        return whenReset(message)
-      case 'Handshaking':
-        return whenHandshaking(message)
-      case 'Ack':
-        return whenAck(message)
-    }
-  }
+  return message => matches[message.type](message as any)
 }
 
 const AuthorizedResponse = t.type(
@@ -135,6 +166,14 @@ const HandshakingResponse = t.type(
   'HandshakingResponse'
 )
 
+const CommandResponse = t.type(
+  {
+    type: t.literal('Command'),
+    command: Command
+  },
+  'CommandResponse'
+)
+
 const AckResponse = t.type(
   {
     type: t.literal('Ack')
@@ -149,6 +188,7 @@ export const Response = t.union(
     PeerConnectedResponse,
     PeerDisconnectedResponse,
     HandshakingResponse,
+    CommandResponse,
     AckResponse
   ],
   'Response'

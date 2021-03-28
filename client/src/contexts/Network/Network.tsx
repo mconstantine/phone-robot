@@ -1,103 +1,175 @@
-import { pipe } from 'fp-ts/function'
+import { constVoid, pipe } from 'fp-ts/function'
 import {
   createContext,
   PropsWithChildren,
+  useCallback,
   useContext,
   useEffect,
   useReducer
 } from 'react'
-import { networkReducer, NetworkState } from './NetworkState'
+import { foldNetworkState, networkReducer, NetworkState } from './NetworkState'
 import { useWebSocket } from '../WebSocket/WebSocket'
 import { foldWebSocketState } from '../WebSocket/WebSocketState'
-import { option } from 'fp-ts'
 import { foldAccount, useAccount } from '../Account/Account'
-import { foldResponse } from '../../globalDomain'
+import { Command, foldPartialResponse } from '../../globalDomain'
+import { Reader } from 'fp-ts/Reader'
+import { option } from 'fp-ts'
+import { Option } from 'fp-ts/Option'
 
-const NetworkContext = createContext<NetworkState>({
-  type: 'Connecting'
+interface NetworkContext {
+  networkState: NetworkState
+  setCommand: Reader<Option<Command>, void>
+}
+
+const NetworkContext = createContext<NetworkContext>({
+  networkState: {
+    type: 'Connecting'
+  },
+  setCommand: constVoid
 })
 
 export function NetworkProvider(props: PropsWithChildren<{}>) {
-  const webSocket = useWebSocket()
-  const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
+  const { webSocketState, sendMessage, clearResponse } = useWebSocket()
   const { account } = useAccount()
+  const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
+
+  const setCommand = useCallback((command: Option<Command>) => {
+    dispatch({
+      type: 'RegisterCommand',
+      command
+    })
+  }, [])
 
   useEffect(() => {
     pipe(
-      webSocket,
-      foldWebSocketState(
-        () => dispatch({ type: 'Reset' }),
-        webSocket => {
-          dispatch({ type: 'Connected' })
-
+      webSocketState,
+      foldWebSocketState({
+        Initial: constVoid,
+        Open: ({ response }) =>
           pipe(
-            webSocket.response,
-            option.fold(
-              () =>
+            state,
+            foldNetworkState({
+              Connecting: () => {
+                dispatch({ type: 'Connected' })
+
                 pipe(
                   account,
-                  foldAccount(
-                    () => dispatch({ type: 'Reset' }),
-                    account =>
-                      webSocket.sendMessage({
-                        type: 'Authorization',
-                        from: 'UI',
-                        accessToken: account.accessToken
-                      })
+                  foldAccount(constVoid, ({ accessToken }) =>
+                    sendMessage({
+                      type: 'Authorization',
+                      from: 'UI',
+                      accessToken
+                    })
+                  )
+                )
+              },
+              Authorizing: () =>
+                pipe(
+                  response,
+                  option.fold(
+                    constVoid,
+                    foldPartialResponse(
+                      {
+                        Authorized: () => dispatch({ type: 'Authorized' })
+                      },
+                      constVoid
+                    )
                   )
                 ),
-              foldResponse({
-                Authorized: () => {
-                  dispatch({ type: 'Authorized' })
-                },
-                Refused: response =>
-                  dispatch({
-                    type: 'Error',
-                    reason: response.reason,
-                    message: response.message
-                  }),
-                PeerConnected: () => {
-                  dispatch({ type: 'PeerConnected' })
+              WaitingForPeer: () =>
+                pipe(
+                  response,
+                  option.fold(
+                    constVoid,
+                    foldPartialResponse(
+                      {
+                        PeerConnected: () => dispatch({ type: 'PeerConnected' })
+                      },
+                      constVoid
+                    )
+                  )
+                ),
+              Handshaking: state => {
+                if (state.isAwaitingForAck) {
+                  pipe(
+                    response,
+                    option.fold(
+                      constVoid,
+                      foldPartialResponse(
+                        {
+                          PeerDisconnected: () =>
+                            dispatch({ type: 'PeerDisconnected' }),
+                          Ack: ack => dispatch({ type: 'RegisterAck', ack })
+                        },
+                        constVoid
+                      )
+                    )
+                  )
+                } else {
+                  clearResponse()
 
-                  webSocket.sendMessage({
-                    type: 'Handshaking',
-                    from: 'UI'
-                  })
-                },
-                PeerDisconnected: () => dispatch({ type: 'PeerDisconnected' }),
-                Ack: response => {
-                  if (
-                    state.type === 'Handshaking' &&
-                    state.receivedMessagesCount >= 99
-                  ) {
-                    return dispatch({ type: 'StartOperating' })
+                  if (state.receivedMessagesCount < 100) {
+                    dispatch({ type: 'RegisterHandshakeSent' })
+
+                    sendMessage({
+                      type: 'Handshaking',
+                      from: 'UI'
+                    })
+                  } else {
+                    dispatch({ type: 'StartOperating' })
                   }
-
-                  const now = new Date()
-
-                  webSocket.sendMessage({
-                    type: 'Handshaking',
-                    from: 'UI'
-                  })
-
-                  dispatch({
-                    type: 'RegisterAck',
-                    ack: response,
-                    nextHandshakingMessageSentAt: now
-                  })
                 }
-              })
-            )
-          )
+              },
+              Operating: state => {
+                if (state.isAwaitingForAck) {
+                  pipe(
+                    response,
+                    option.fold(
+                      constVoid,
+                      foldPartialResponse(
+                        {
+                          PeerDisconnected: () =>
+                            dispatch({ type: 'PeerDisconnected' }),
+                          Ack: ack => dispatch({ type: 'RegisterAck', ack })
+                        },
+                        constVoid
+                      )
+                    )
+                  )
+                } else {
+                  pipe(
+                    state.command,
+                    option.fold(constVoid, command => {
+                      clearResponse()
+                      dispatch({ type: 'RegisterCommandSent' })
+                      sendMessage({
+                        type: 'Command',
+                        from: 'UI',
+                        command
+                      })
+                    })
+                  )
+                }
+              },
+              Error: constVoid
+            })
+          ),
+        Closed: () => {
+          if (state.type !== 'Connecting') {
+            dispatch({ type: 'Reset' })
+          }
         },
-        () => dispatch({ type: 'Reset' })
-      )
+        ConnectionFailed: () => {
+          if (state.type !== 'Connecting') {
+            dispatch({ type: 'Reset' })
+          }
+        }
+      })
     )
-    // eslint-disable-next-line
-  }, [account, webSocket])
+  })
 
   return (
-    <NetworkContext.Provider value={state}>
+    <NetworkContext.Provider value={{ networkState: state, setCommand }}>
       {props.children}
     </NetworkContext.Provider>
   )

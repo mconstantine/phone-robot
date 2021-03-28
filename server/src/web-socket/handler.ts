@@ -6,6 +6,7 @@ import { verifyToken } from '../lib/jsonwebtoken'
 import { getUserById } from '../user/userDatabase'
 import {
   AuthorizationMessage,
+  CommandMessage,
   Message,
   RefusalReason,
   Response
@@ -183,6 +184,13 @@ export class WebSocketRobotHandler extends WebSocketHandler {
   public forwardHandshakingMessage() {
     this.sendResponse({
       type: 'Handshaking'
+    })
+  }
+
+  public forwardCommandMessage(message: CommandMessage) {
+    this.sendResponse({
+      type: 'Command',
+      command: message.command
     })
   }
 

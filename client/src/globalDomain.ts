@@ -2,6 +2,7 @@ import * as t from 'io-ts'
 import { IO } from 'fp-ts/IO'
 import { Reader } from 'fp-ts/Reader'
 import { NonEmptyString } from 'io-ts-types'
+import { Lazy } from 'fp-ts/function'
 
 interface PositiveIntegerBrand {
   readonly PositiveInteger: unique symbol
@@ -39,8 +40,8 @@ interface DegreesAngleBrand {
   readonly DegreesAngle: unique symbol
 }
 export const DegreesAngle = t.brand(
-  t.number,
-  (n): n is t.Branded<number, DegreesAngleBrand> => n >= 0 && n <= 360,
+  t.Int,
+  (n): n is t.Branded<t.Int, DegreesAngleBrand> => n >= 0 && n <= 360,
   'DegreesAngle'
 )
 export type DegreesAngle = t.TypeOf<typeof DegreesAngle>
@@ -84,20 +85,32 @@ type AuthorizationMessage = t.TypeOf<typeof AuthorizationMessage>
 const HandshakingMessage = t.type(
   {
     type: t.literal('Handshaking'),
-    from: t.literal('UI')
+    from: From
   },
   'HandshakingMessage'
 )
 type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
 
-export const Command = t.type({
-  speed: Percentage,
-  angle: DegreesAngle
-})
+export const Command = t.type(
+  {
+    speed: Percentage,
+    angle: DegreesAngle
+  },
+  'Command'
+)
 export type Command = t.TypeOf<typeof Command>
 
+const CommandMessage = t.type(
+  {
+    type: t.literal('Command'),
+    from: From,
+    command: Command
+  },
+  'CommandMessage'
+)
+
 export const Message = t.union(
-  [AuthorizationMessage, HandshakingMessage],
+  [AuthorizationMessage, HandshakingMessage, CommandMessage],
   'Message'
 )
 export type Message = t.TypeOf<typeof Message>
@@ -180,4 +193,15 @@ export function foldResponse<T>(
   }
 ): Reader<Response, T> {
   return response => matches[response.type](response as any)
+}
+
+export function foldPartialResponse<T>(
+  matches: Partial<
+    {
+      [k in Response['type']]: Reader<Extract<Response, { type: k }>, T>
+    }
+  >,
+  defaultValue: Lazy<T>
+): Reader<Response, T> {
+  return response => matches[response.type]?.(response as any) ?? defaultValue()
 }

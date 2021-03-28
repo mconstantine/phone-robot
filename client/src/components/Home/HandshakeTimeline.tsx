@@ -1,21 +1,21 @@
 import { Timeline } from 'antd'
 import { constNull, pipe } from 'fp-ts/function'
 import { useNetwork } from '../../contexts/Network/Network'
-import { foldNetworkState } from '../../contexts/Network/NetworkState'
+import { foldPartialNetworkState } from '../../contexts/Network/NetworkState'
 
 export function HandshakeTimeline() {
-  const network = useNetwork()
+  const { networkState } = useNetwork()
 
   const step1 = () => 'Connecting'
   const step2 = () => 'Authorizing'
   const step3 = () => 'Waiting for robot'
 
   const step4 = () => {
-    if (network.type === 'Handshaking') {
-      const avgRTT = (network.minRTT + network.maxRTT) / 2
+    if (networkState.type === 'Handshaking') {
+      const avgRTT = (networkState.minRTT + networkState.maxRTT) / 2
       const rtt = (avgRTT / 1000).toFixed(3)
 
-      return `Establishing connection (${network.receivedMessagesCount}%), average RTT: ${rtt} seconds`
+      return `Establishing connection (${networkState.receivedMessagesCount}%), average RTT: ${rtt} seconds`
     } else {
       return 'Establishing connection'
     }
@@ -32,14 +32,15 @@ export function HandshakeTimeline() {
   )
 
   return pipe(
-    network,
-    foldNetworkState({
-      Connecting: () => createTimeline(0),
-      Authorizing: () => createTimeline(1),
-      WaitingForPeer: () => createTimeline(2),
-      Handshaking: () => createTimeline(3),
-      Operating: constNull,
-      Error: constNull
-    })
+    networkState,
+    foldPartialNetworkState(
+      {
+        Connecting: () => createTimeline(0),
+        Authorizing: () => createTimeline(1),
+        WaitingForPeer: () => createTimeline(2),
+        Handshaking: () => createTimeline(3)
+      },
+      constNull
+    )
   )
 }

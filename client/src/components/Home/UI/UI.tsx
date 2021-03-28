@@ -1,6 +1,6 @@
 import { Layout, Typography } from 'antd'
 import { option } from 'fp-ts'
-import { constNull, constVoid, pipe } from 'fp-ts/function'
+import { constNull, pipe } from 'fp-ts/function'
 import { Option } from 'fp-ts/Option'
 import { useEffect, useState } from 'react'
 import { useNetwork } from '../../../contexts/Network/Network'
@@ -10,16 +10,15 @@ import './UI.less'
 import { Command } from '../../../globalDomain'
 
 export function UI() {
-  const network = useNetwork()
+  const { networkState, setCommand: setNetworkCommand } = useNetwork()
   const [command, setCommand] = useState<Option<Command>>(option.none)
 
   useEffect(() => {
-    // TODO: send this to robot
-    pipe(command, option.fold(constVoid, console.log))
-  }, [command])
+    setNetworkCommand(command)
+  }, [command, setNetworkCommand])
 
   return pipe(
-    network,
+    networkState,
     foldPartialNetworkState(
       {
         Operating: state => {

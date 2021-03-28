@@ -8,13 +8,13 @@ import { UI } from './UI/UI'
 import { foldRefusalReason } from '../../globalDomain'
 
 export default function HomePage() {
-  const network = useNetwork()
+  const { networkState } = useNetwork()
   const { dispatchAccountAction } = useAccount()
 
   return (
     <Layout.Content>
       {pipe(
-        network,
+        networkState,
         foldNetworkState({
           Connecting: () => <HandshakeTimeline />,
           Authorizing: () => <HandshakeTimeline />,

@@ -2,41 +2,54 @@ import { Reader } from 'fp-ts/Reader'
 import { Option } from 'fp-ts/Option'
 import { option } from 'fp-ts'
 import { Message, Response } from '../../globalDomain'
+import { Lazy } from 'fp-ts/function'
 
-interface ClosedWebSocketState {
-  type: 'Closed'
+interface InitialWebSocketState {
+  type: 'Initial'
 }
 
 interface OpenWebSocketState {
   type: 'Open'
   response: Option<Response>
-  sendMessage: Reader<Message, void>
 }
 
 interface ConnectionFailedWebSocketState {
   type: 'ConnectionFailed'
 }
 
+interface ClosedWebSocketState {
+  type: 'Closed'
+}
+
 export type WebSocketState =
-  | ClosedWebSocketState
+  | InitialWebSocketState
   | OpenWebSocketState
   | ConnectionFailedWebSocketState
+  | ClosedWebSocketState
 
 export function foldWebSocketState<T>(
-  whenClosed: Reader<ClosedWebSocketState, T>,
-  whenOpen: Reader<OpenWebSocketState, T>,
-  whenConnectionFailed: Reader<ConnectionFailedWebSocketState, T>
-): Reader<WebSocketState, T> {
-  return state => {
-    switch (state.type) {
-      case 'Closed':
-        return whenClosed(state)
-      case 'Open':
-        return whenOpen(state)
-      case 'ConnectionFailed':
-        return whenConnectionFailed(state)
-    }
+  matches: {
+    [k in WebSocketState['type']]: Reader<
+      Extract<WebSocketState, { type: k }>,
+      T
+    >
   }
+): Reader<WebSocketState, T> {
+  return state => matches[state.type](state as any)
+}
+
+export function foldPartialWebSocketState<T>(
+  matches: Partial<
+    {
+      [k in WebSocketState['type']]: Reader<
+        Extract<WebSocketState, { type: k }>,
+        T
+      >
+    }
+  >,
+  defaultValue: Lazy<T>
+): Reader<WebSocketState, T> {
+  return state => matches[state.type]?.(state as any) ?? defaultValue()
 }
 
 interface OpenWebSocketAction {
@@ -47,6 +60,10 @@ interface OpenWebSocketAction {
 interface SetResponseWebSocketAction {
   type: 'SetResponse'
   response: Response
+}
+
+interface ClearResponseWebSocketAction {
+  type: 'ClearResponse'
 }
 
 interface SetErrorWebSocketAction {
@@ -60,6 +77,7 @@ interface CloseWebSocketAction {
 export type WebSocketAction =
   | OpenWebSocketAction
   | SetResponseWebSocketAction
+  | ClearResponseWebSocketAction
   | SetErrorWebSocketAction
   | CloseWebSocketAction
 
@@ -68,17 +86,18 @@ export function webSocketReducer(
   action: WebSocketAction
 ): WebSocketState {
   switch (state.type) {
-    case 'Closed':
+    case 'Initial':
       switch (action.type) {
         case 'Open':
           return {
             type: 'Open',
-            response: option.none,
-            sendMessage: action.sendMessage
+            response: option.none
           }
         case 'Close':
           return state
         case 'SetResponse':
+          return state
+        case 'ClearResponse':
           return state
         case 'Error':
           return {
@@ -96,9 +115,31 @@ export function webSocketReducer(
         case 'SetResponse':
           return {
             type: 'Open',
-            response: option.some(action.response),
-            sendMessage: state.sendMessage
+            response: option.some(action.response)
           }
+        case 'ClearResponse':
+          return {
+            type: 'Open',
+            response: option.none
+          }
+        case 'Error':
+          return {
+            type: 'ConnectionFailed'
+          }
+      }
+    case 'Closed':
+      switch (action.type) {
+        case 'Open':
+          return {
+            type: 'Open',
+            response: option.none
+          }
+        case 'Close':
+          return state
+        case 'SetResponse':
+          return state
+        case 'ClearResponse':
+          return state
         case 'Error':
           return {
             type: 'ConnectionFailed'
@@ -109,14 +150,15 @@ export function webSocketReducer(
         case 'Open':
           return {
             type: 'Open',
-            response: option.none,
-            sendMessage: action.sendMessage
+            response: option.none
           }
         case 'Close':
           return {
             type: 'Closed'
           }
         case 'SetResponse':
+          return state
+        case 'ClearResponse':
           return state
         case 'Error':
           return state

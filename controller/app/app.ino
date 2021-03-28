@@ -151,7 +151,7 @@ void loop()
       WiFi.end();
     }
 
-    receivedHandshakingMessagesCount = 0;
+    resetNetworkData();
     currentState.setState(State::Initial);
   }
 }
@@ -164,7 +164,7 @@ void onWebsocketsEvent(WebsocketsEvent event, String data)
   }
   else if (event == WebsocketsEvent::ConnectionClosed)
   {
-    receivedHandshakingMessagesCount = 0;
+    resetNetworkData();
     currentState.setState(State::Initial);
   }
   else if (event == WebsocketsEvent::GotPing)
@@ -205,7 +205,7 @@ void onWebsocketsMessage(WebsocketsMessage message)
   }
   else if (type == "PeerDisconnected")
   {
-    receivedHandshakingMessagesCount = 0;
+    resetNetworkData();
     currentState.setState(State::Authorized);
   }
   else if (type == "Handshaking")
@@ -237,21 +237,67 @@ void onWebsocketsMessage(WebsocketsMessage message)
     if (receivedHandshakingMessagesCount >= 100)
     {
       receivedHandshakingMessagesCount = 0;
+      lastMessageSentAt = 0;
       currentState.setState(State::Ready);
     }
+  }
+  else if (type == "Command")
+  {
+    if (currentState.getState() != State::Ready)
+    {
+      return;
+    }
+
+    SerialUSB.print("Received command. TODO: handle it.");
+
+    const long now = millis();
+
+    if (lastMessageSentAt != 0)
+    {
+      const long rtt = now - lastMessageSentAt;
+
+      if (rtt > maxRTT + 1000)
+      {
+        lastMessageSentAt = 0;
+      }
+      else
+      {
+        minRTT = min(minRTT, rtt);
+        maxRTT = max(maxRTT, rtt);
+
+        const long averageRTT = (minRTT + maxRTT) / 2.;
+
+        SerialUSB.print("Average RTT is ");
+        SerialUSB.print(averageRTT);
+        SerialUSB.println(".");
+      }
+    }
+
+    sendAck();
+    lastMessageSentAt = now;
   }
 }
 
 void sendAck()
 {
-  SerialUSB.println("Responding.");
-
   bool success = client.send(ackMessage);
 
-  if (!success)
+  if (success)
+  {
+    SerialUSB.println("Acknowledged.");
+  }
+  else
   {
     SerialUSB.println("Unable to send acknowledgement. Retrying in 3 seconds.");
     delay(3000);
     sendAck();
   }
+}
+
+void resetNetworkData()
+{
+  lastMessageSentAt = 0;
+  receivedHandshakingMessagesCount = 0;
+  minRTT = 0;
+  maxRTT = 0;
 }

@@ -64,8 +64,8 @@ export function initWebSocket(server: Server) {
         either.fold(constVoid, message =>
           pipe(
             message,
-            foldMessage(
-              message =>
+            foldMessage({
+              Authorization: message =>
                 pipe(
                   message.from,
                   foldActor(
@@ -73,17 +73,18 @@ export function initWebSocket(server: Server) {
                     () => authorizeRobot(message)
                   )
                 ),
-              message =>
+              Reset: message =>
                 pipe(
                   message.from,
                   foldActor(constVoid, () => robotHandler.reset())
                 ),
-              () => robotHandler.forwardHandshakingMessage(),
-              () => {
+              Handshaking: () => robotHandler.forwardHandshakingMessage(),
+              Command: message => robotHandler.forwardCommandMessage(message),
+              Ack: () => {
                 robotHandler.registerAck()
                 clientHandler.forwardAckMessage()
               }
-            )
+            })
           )
         )
       )

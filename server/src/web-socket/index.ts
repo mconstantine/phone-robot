@@ -17,15 +17,11 @@ export function initWebSocket(server: Server) {
   )
 
   server.on('connection', socket => {
-    console.log('New connection')
-
     const authorizeClient = (message: AuthorizationMessage) => {
       const authorize = pipe(
         clientHandler.authorize(socket, message),
         taskEither.chain(() =>
           taskEither.fromIO(() => {
-            console.log('Client is in')
-
             if (robotHandler.isConnected()) {
               clientHandler.signalPeerConnected()
               robotHandler.signalPeerConnected()
@@ -42,8 +38,6 @@ export function initWebSocket(server: Server) {
         robotHandler.authorize(socket, message),
         taskEither.chain(() =>
           taskEither.fromIO(() => {
-            console.log('Robot is in')
-
             if (clientHandler.isConnected()) {
               clientHandler.signalPeerConnected()
               robotHandler.signalPeerConnected()
@@ -55,9 +49,7 @@ export function initWebSocket(server: Server) {
       authorize()
     }
 
-    socket.on('message', data => {
-      console.log(data)
-
+    socket.on('message', data =>
       pipe(
         either.tryCatch(() => JSON.parse(data.toString()), constVoid),
         either.chainW(Message.decode),
@@ -88,6 +80,6 @@ export function initWebSocket(server: Server) {
           )
         )
       )
-    })
+    )
   })
 }

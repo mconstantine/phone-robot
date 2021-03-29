@@ -274,7 +274,12 @@ export function networkReducer(
             const lastMessageRTT =
               Date.now() - state.lastMessageSentAt.getTime()
             const minRTT = Math.min(state.minRTT, lastMessageRTT)
-            const maxRTT = Math.max(state.maxRTT, lastMessageRTT)
+
+            const maxRTT =
+              lastMessageRTT > state.maxRTT + 1000
+                ? state.maxRTT
+                : Math.max(state.maxRTT, lastMessageRTT)
+
             const newReceivedMessagesCount = state.receivedMessagesCount + 1
 
             return {
@@ -338,7 +343,11 @@ export function networkReducer(
             const lastMessageRTT =
               Date.now() - state.lastMessageSentAt.getTime()
             const minRTT = Math.min(state.minRTT, lastMessageRTT)
-            const maxRTT = Math.max(state.maxRTT, lastMessageRTT)
+
+            const maxRTT =
+              lastMessageRTT > state.maxRTT + 1000
+                ? state.maxRTT
+                : Math.max(state.maxRTT, lastMessageRTT)
 
             return {
               type: 'Operating',

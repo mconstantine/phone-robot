@@ -12,9 +12,24 @@ long lastMessageSentAt = 0;
 int receivedHandshakingMessagesCount = 0;
 long minRTT = 0;
 long maxRTT = 0;
+bool isMoving = false;
 
 void setup()
 {
+  pinMode(PIN_LEFT_SPEED_1, OUTPUT);
+  pinMode(PIN_LEFT_SPEED_2, OUTPUT);
+  pinMode(PIN_LEFT_SPEED_3, OUTPUT);
+  pinMode(PIN_LEFT_SPEED_4, OUTPUT);
+  pinMode(PIN_LEFT_SPEED_5, OUTPUT);
+  pinMode(PIN_LEFT_PHASE, OUTPUT);
+
+  pinMode(PIN_RIGHT_SPEED_1, OUTPUT);
+  pinMode(PIN_RIGHT_SPEED_2, OUTPUT);
+  pinMode(PIN_RIGHT_SPEED_3, OUTPUT);
+  pinMode(PIN_RIGHT_SPEED_4, OUTPUT);
+  pinMode(PIN_RIGHT_SPEED_5, OUTPUT);
+  pinMode(PIN_RIGHT_PHASE, OUTPUT);
+
   pinMode(PIN_SWITCH, INPUT);
   pinMode(PIN_LED_1, OUTPUT);
   pinMode(PIN_LED_2, OUTPUT);
@@ -248,7 +263,23 @@ void onWebsocketsMessage(WebsocketsMessage message)
       return;
     }
 
-    SerialUSB.print("Received command. TODO: handle it.");
+    if (
+        !document.hasOwnProperty("command") ||
+        JSON.typeof_(document["command"]["speed"]) != "number" ||
+        JSON.typeof_(document["command"]["angle"]) != "number")
+    {
+      return;
+    }
+
+    double speed = document["command"]["speed"];
+    int angle = document["command"]["angle"];
+
+    if (speed < 0 || speed > 1 || angle < 0 || angle > 360)
+    {
+      return;
+    }
+
+    handleCommand(speed, angle);
 
     const long now = millis();
 
@@ -300,4 +331,64 @@ void resetNetworkData()
   receivedHandshakingMessagesCount = 0;
   minRTT = 0;
   maxRTT = 0;
+}
+
+void handleCommand(double speed, int angle)
+{
+  isMoving = speed > 0;
+
+  double leftTrackSpeed = 0.;
+  double rightTrackSpeed = 0.;
+
+  if (angle == 0)
+  {
+    // Turn right
+    leftTrackSpeed = 1.;
+    rightTrackSpeed = -1.;
+  }
+  else if (angle < 90)
+  {
+    // Go backwards right
+    leftTrackSpeed = -1.;
+    rightTrackSpeed = -1. + angle / 90.;
+  }
+  else if (angle == 90)
+  {
+    // Go backwards
+    leftTrackSpeed = -1.;
+    rightTrackSpeed = -1.;
+  }
+  else if (angle < 180)
+  {
+    // Go backwards left
+    rightTrackSpeed = -1.;
+    leftTrackSpeed = -1. + (angle - 90) / 90.;
+  }
+  else if (angle == 180)
+  {
+    // Turn left
+    leftTrackSpeed = -1.;
+    rightTrackSpeed = -1.;
+  }
+  else if (angle < 270)
+  {
+    // Go forward left
+    rightTrackSpeed = 1.;
+    leftTrackSpeed = 1. - (angle - 180) / 90.;
+  }
+  else if (angle == 270)
+  {
+    // Go forward
+    rightTrackSpeed = 1.;
+    leftTrackSpeed = 1.;
+  }
+  else
+  {
+    // Go forward right
+    leftTrackSpeed = 1.;
+    rightTrackSpeed = 1. - (angle - 270) / 90.;
+  }
+
+  leftTrackSpeed *= speed;
+  rightTrackSpeed *= speed;
 }

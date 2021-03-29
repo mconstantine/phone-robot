@@ -3,13 +3,13 @@
 class State
 {
 public:
-  static const int Error = -1;
-  static const int Initial = 0;
-  static const int Connected = 1;
-  static const int WaitingForAuthorization = 2;
-  static const int Authorized = 3;
-  static const int Handshaking = 4;
-  static const int Ready = 5;
+  static const int Error = 0;
+  static const int Initial = 1;
+  static const int Connected = 2;
+  static const int WaitingForAuthorization = 3;
+  static const int Authorized = 4;
+  static const int Handshaking = 5;
+  static const int Ready = 6;
 
   void setup();
   void setState(int newState);

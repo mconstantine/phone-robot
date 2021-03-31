@@ -372,13 +372,38 @@ void handleCommand(const double speed, const int angle)
     rightTrackSpeed = 1. - (angle - 270) / 90.;
   }
 
-  leftTrackSpeed *= speed;
-  rightTrackSpeed *= speed;
+  const int left = abs(round((leftTrackSpeed * speed) * 31));
+  const int right = abs(round((rightTrackSpeed * speed) * 31));
 
-  SerialUSB.print("Angle: ");
-  SerialUSB.print(angle);
-  SerialUSB.print(", Left: ");
-  SerialUSB.print(leftTrackSpeed);
-  SerialUSB.print(", right: ");
-  SerialUSB.println(rightTrackSpeed);
+  if (isMoving)
+  {
+    digitalWrite(PIN_LEFT_PHASE, leftTrackSpeed >= 0 ? LOW : HIGH);
+    digitalWrite(PIN_RIGHT_PHASE, rightTrackSpeed >= 0 ? LOW : HIGH);
+
+    digitalWrite(PIN_LEFT_SPEED_1, ((left >> 0) & 0x01));
+    digitalWrite(PIN_LEFT_SPEED_2, ((left >> 1) & 0x01));
+    digitalWrite(PIN_LEFT_SPEED_3, ((left >> 2) & 0x01));
+    digitalWrite(PIN_LEFT_SPEED_4, ((left >> 3) & 0x01));
+    digitalWrite(PIN_LEFT_SPEED_5, ((left >> 4) & 0x01));
+    digitalWrite(PIN_RIGHT_SPEED_1, ((right >> 0) & 0x01));
+    digitalWrite(PIN_RIGHT_SPEED_2, ((right >> 1) & 0x01));
+    digitalWrite(PIN_RIGHT_SPEED_3, ((right >> 2) & 0x01));
+    digitalWrite(PIN_RIGHT_SPEED_4, ((right >> 3) & 0x01));
+    digitalWrite(PIN_RIGHT_SPEED_5, ((right >> 4) & 0x01));
+  }
+  else
+  {
+    digitalWrite(PIN_LEFT_SPEED_1, LOW);
+    digitalWrite(PIN_LEFT_SPEED_2, LOW);
+    digitalWrite(PIN_LEFT_SPEED_3, LOW);
+    digitalWrite(PIN_LEFT_SPEED_4, LOW);
+    digitalWrite(PIN_LEFT_SPEED_5, LOW);
+    digitalWrite(PIN_LEFT_PHASE, LOW);
+    digitalWrite(PIN_RIGHT_SPEED_1, LOW);
+    digitalWrite(PIN_RIGHT_SPEED_2, LOW);
+    digitalWrite(PIN_RIGHT_SPEED_3, LOW);
+    digitalWrite(PIN_RIGHT_SPEED_4, LOW);
+    digitalWrite(PIN_RIGHT_SPEED_5, LOW);
+    digitalWrite(PIN_RIGHT_PHASE, LOW);
+  }
 }

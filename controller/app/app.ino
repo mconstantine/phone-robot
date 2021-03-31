@@ -327,13 +327,13 @@ void handleCommand(const double speed, const int angle)
   {
     // Turn right
     leftTrackSpeed = 1.;
-    rightTrackSpeed = -1.;
+    rightTrackSpeed = 0.;
   }
   else if (angle < 90)
   {
     // Go backwards right
     leftTrackSpeed = -1.;
-    rightTrackSpeed = -1. + angle / 90.;
+    rightTrackSpeed = -1. * angle / 90.;
   }
   else if (angle == 90)
   {
@@ -351,13 +351,13 @@ void handleCommand(const double speed, const int angle)
   {
     // Turn left
     leftTrackSpeed = -1.;
-    rightTrackSpeed = -1.;
+    rightTrackSpeed = 0.;
   }
   else if (angle < 270)
   {
     // Go forward left
     rightTrackSpeed = 1.;
-    leftTrackSpeed = 1. - (angle - 180) / 90.;
+    leftTrackSpeed = (angle - 180) / 90.;
   }
   else if (angle == 270)
   {
@@ -375,5 +375,10 @@ void handleCommand(const double speed, const int angle)
   leftTrackSpeed *= speed;
   rightTrackSpeed *= speed;
 
-  // TODO:
+  SerialUSB.print("Angle: ");
+  SerialUSB.print(angle);
+  SerialUSB.print(", Left: ");
+  SerialUSB.print(leftTrackSpeed);
+  SerialUSB.print(", right: ");
+  SerialUSB.println(rightTrackSpeed);
 }

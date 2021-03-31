@@ -7,6 +7,7 @@ import { getUserById } from '../user/userDatabase'
 import {
   AuthorizationMessage,
   CommandMessage,
+  HandshakingMessage,
   Message,
   RefusalReason,
   Response
@@ -112,12 +113,6 @@ export class WebSocketClientHandler extends WebSocketHandler {
     return pipe(this.socket, option.fold(authorize, refuse))
   }
 
-  public forwardAckMessage() {
-    this.sendResponse({
-      type: 'Ack'
-    })
-  }
-
   public reset() {
     this.onPeerDisconnected()
     this.updateState({
@@ -177,21 +172,19 @@ export class WebSocketRobotHandler extends WebSocketHandler {
     return pipe(this.socket, option.fold(authorize, refuse))
   }
 
-  public forwardHandshakingMessage() {
+  public forwardHandshakingMessage(message: HandshakingMessage) {
     this.sendResponse({
-      type: 'Handshaking'
+      type: 'Handshaking',
+      time: message.time
     })
   }
 
   public forwardCommandMessage(message: CommandMessage) {
     this.sendResponse({
       type: 'Command',
-      command: message.command
+      command: message.command,
+      time: message.time
     })
-  }
-
-  public registerAck() {
-    this.latestRobotActivityTime = Date.now()
   }
 
   public reset() {

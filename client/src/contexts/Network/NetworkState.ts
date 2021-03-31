@@ -1,8 +1,6 @@
-import { option } from 'fp-ts'
 import { Lazy } from 'fp-ts/function'
-import { Option } from 'fp-ts/Option'
 import { Reader } from 'fp-ts/Reader'
-import { AckResponse, Command, RefusalReason } from '../../globalDomain'
+import { RefusalReason } from '../../globalDomain'
 
 interface ConnectingNetworkState {
   type: 'Connecting'
@@ -18,20 +16,11 @@ interface WaitingForPeerNetworkState {
 
 interface HandshakingNetworkState {
   type: 'Handshaking'
-  receivedMessagesCount: number
-  minRTT: number
-  maxRTT: number
-  lastMessageSentAt: Date
-  isAwaitingForAck: boolean
+  sentMessagesCount: number
 }
 
 interface OperatingNetworkState {
   type: 'Operating'
-  minRTT: number
-  maxRTT: number
-  lastMessageSentAt: Date
-  command: Option<Command>
-  isAwaitingForAck: boolean
 }
 
 interface ErrorState {
@@ -87,20 +76,6 @@ interface RegisterHandshakeSentAction {
   type: 'RegisterHandshakeSent'
 }
 
-interface RegisterAckAction {
-  type: 'RegisterAck'
-  ack: AckResponse
-}
-
-interface RegisterCommandAction {
-  type: 'RegisterCommand'
-  command: Option<Command>
-}
-
-interface RegisterCommandSentAction {
-  type: 'RegisterCommandSent'
-}
-
 interface StartOperatingAction {
   type: 'StartOperating'
 }
@@ -122,9 +97,6 @@ type NetworkAction =
   | PeerDisconnectedAction
   | RegisterHandshakeSentAction
   | StartOperatingAction
-  | RegisterCommandAction
-  | RegisterCommandSentAction
-  | RegisterAckAction
   | ResetAction
   | ErrorAction
 
@@ -148,12 +120,6 @@ export function networkReducer(
         case 'RegisterHandshakeSent':
           return state
         case 'StartOperating':
-          return state
-        case 'RegisterCommand':
-          return state
-        case 'RegisterCommandSent':
-          return state
-        case 'RegisterAck':
           return state
         case 'Error':
           return {
@@ -180,12 +146,6 @@ export function networkReducer(
           return state
         case 'StartOperating':
           return state
-        case 'RegisterCommand':
-          return state
-        case 'RegisterCommandSent':
-          return state
-        case 'RegisterAck':
-          return state
         case 'Error':
           return {
             type: 'Error',
@@ -206,23 +166,13 @@ export function networkReducer(
         case 'PeerConnected':
           return {
             type: 'Handshaking',
-            receivedMessagesCount: 0,
-            minRTT: 0,
-            maxRTT: 0,
-            lastMessageSentAt: new Date(),
-            isAwaitingForAck: false
+            sentMessagesCount: 0
           }
         case 'PeerDisconnected':
           return state
         case 'RegisterHandshakeSent':
           return state
         case 'StartOperating':
-          return state
-        case 'RegisterCommand':
-          return state
-        case 'RegisterCommandSent':
-          return state
-        case 'RegisterAck':
           return state
         case 'Error':
           return {
@@ -250,48 +200,11 @@ export function networkReducer(
         case 'RegisterHandshakeSent':
           return {
             type: 'Handshaking',
-            receivedMessagesCount: state.receivedMessagesCount,
-            minRTT: state.minRTT,
-            maxRTT: state.maxRTT,
-            lastMessageSentAt: new Date(),
-            isAwaitingForAck: true
+            sentMessagesCount: state.sentMessagesCount + 1
           }
         case 'StartOperating':
           return {
-            type: 'Operating',
-            minRTT: state.minRTT,
-            maxRTT: state.maxRTT,
-            lastMessageSentAt: state.lastMessageSentAt,
-            command: option.none,
-            isAwaitingForAck: false
-          }
-        case 'RegisterCommand':
-          return state
-        case 'RegisterCommandSent':
-          return state
-        case 'RegisterAck':
-          if (state.isAwaitingForAck) {
-            const lastMessageRTT =
-              Date.now() - state.lastMessageSentAt.getTime()
-            const minRTT = Math.min(state.minRTT, lastMessageRTT)
-
-            const maxRTT =
-              lastMessageRTT > state.maxRTT + 1000
-                ? state.maxRTT
-                : Math.max(state.maxRTT, lastMessageRTT)
-
-            const newReceivedMessagesCount = state.receivedMessagesCount + 1
-
-            return {
-              type: 'Handshaking',
-              receivedMessagesCount: newReceivedMessagesCount,
-              minRTT,
-              maxRTT,
-              lastMessageSentAt: state.lastMessageSentAt,
-              isAwaitingForAck: false
-            }
-          } else {
-            return state
+            type: 'Operating'
           }
         case 'Error':
           return {
@@ -320,46 +233,6 @@ export function networkReducer(
           return state
         case 'StartOperating':
           return state
-        case 'RegisterCommand':
-          return {
-            type: 'Operating',
-            maxRTT: state.maxRTT,
-            minRTT: state.minRTT,
-            lastMessageSentAt: state.lastMessageSentAt,
-            command: action.command,
-            isAwaitingForAck: state.isAwaitingForAck
-          }
-        case 'RegisterCommandSent':
-          return {
-            type: 'Operating',
-            maxRTT: state.maxRTT,
-            minRTT: state.minRTT,
-            lastMessageSentAt: new Date(),
-            command: state.command,
-            isAwaitingForAck: true
-          }
-        case 'RegisterAck':
-          if (state.isAwaitingForAck) {
-            const lastMessageRTT =
-              Date.now() - state.lastMessageSentAt.getTime()
-            const minRTT = Math.min(state.minRTT, lastMessageRTT)
-
-            const maxRTT =
-              lastMessageRTT > state.maxRTT + 1000
-                ? state.maxRTT
-                : Math.max(state.maxRTT, lastMessageRTT)
-
-            return {
-              type: 'Operating',
-              minRTT,
-              maxRTT,
-              lastMessageSentAt: state.lastMessageSentAt,
-              command: state.command,
-              isAwaitingForAck: false
-            }
-          } else {
-            return state
-          }
         case 'Error':
           return {
             type: 'Error',
@@ -384,12 +257,6 @@ export function networkReducer(
         case 'RegisterHandshakeSent':
           return state
         case 'StartOperating':
-          return state
-        case 'RegisterCommand':
-          return state
-        case 'RegisterCommandSent':
-          return state
-        case 'RegisterAck':
           return state
         case 'Error':
           return state

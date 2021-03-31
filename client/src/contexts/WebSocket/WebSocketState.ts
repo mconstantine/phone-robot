@@ -62,10 +62,6 @@ interface SetResponseWebSocketAction {
   response: Response
 }
 
-interface ClearResponseWebSocketAction {
-  type: 'ClearResponse'
-}
-
 interface SetErrorWebSocketAction {
   type: 'Error'
 }
@@ -77,7 +73,6 @@ interface CloseWebSocketAction {
 export type WebSocketAction =
   | OpenWebSocketAction
   | SetResponseWebSocketAction
-  | ClearResponseWebSocketAction
   | SetErrorWebSocketAction
   | CloseWebSocketAction
 
@@ -97,8 +92,6 @@ export function webSocketReducer(
           return state
         case 'SetResponse':
           return state
-        case 'ClearResponse':
-          return state
         case 'Error':
           return {
             type: 'ConnectionFailed'
@@ -117,11 +110,6 @@ export function webSocketReducer(
             type: 'Open',
             response: option.some(action.response)
           }
-        case 'ClearResponse':
-          return {
-            type: 'Open',
-            response: option.none
-          }
         case 'Error':
           return {
             type: 'ConnectionFailed'
@@ -137,8 +125,6 @@ export function webSocketReducer(
         case 'Close':
           return state
         case 'SetResponse':
-          return state
-        case 'ClearResponse':
           return state
         case 'Error':
           return {
@@ -157,8 +143,6 @@ export function webSocketReducer(
             type: 'Closed'
           }
         case 'SetResponse':
-          return state
-        case 'ClearResponse':
           return state
         case 'Error':
           return state

@@ -48,11 +48,12 @@ export type ResetMessage = t.TypeOf<typeof ResetMessage>
 const HandshakingMessage = t.type(
   {
     type: t.literal('Handshaking'),
-    from: t.literal('UI')
+    from: t.literal('UI'),
+    time: t.number
   },
   'HandshakingMessage'
 )
-type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
+export type HandshakingMessage = t.TypeOf<typeof HandshakingMessage>
 
 interface PercentageBrand {
   readonly Percentage: unique symbol
@@ -87,29 +88,15 @@ const CommandMessage = t.type(
   {
     type: t.literal('Command'),
     from: t.literal('UI'),
-    command: Command
+    command: Command,
+    time: t.number
   },
   'CommandMessage'
 )
 export type CommandMessage = t.TypeOf<typeof CommandMessage>
 
-const AckMessage = t.type(
-  {
-    type: t.literal('Ack'),
-    from: t.literal('Robot')
-  },
-  'AckMessage'
-)
-type AckMessage = t.TypeOf<typeof AckMessage>
-
 export const Message = t.union(
-  [
-    AuthorizationMessage,
-    ResetMessage,
-    HandshakingMessage,
-    CommandMessage,
-    AckMessage
-  ],
+  [AuthorizationMessage, ResetMessage, HandshakingMessage, CommandMessage],
   'Message'
 )
 export type Message = t.TypeOf<typeof Message>
@@ -161,7 +148,8 @@ const PeerDisconnectedResponse = t.type(
 
 const HandshakingResponse = t.type(
   {
-    type: t.literal('Handshaking')
+    type: t.literal('Handshaking'),
+    time: t.number
   },
   'HandshakingResponse'
 )
@@ -169,16 +157,10 @@ const HandshakingResponse = t.type(
 const CommandResponse = t.type(
   {
     type: t.literal('Command'),
-    command: Command
+    command: Command,
+    time: t.number
   },
   'CommandResponse'
-)
-
-const AckResponse = t.type(
-  {
-    type: t.literal('Ack')
-  },
-  'AckResponse'
 )
 
 export const Response = t.union(
@@ -188,8 +170,7 @@ export const Response = t.union(
     PeerConnectedResponse,
     PeerDisconnectedResponse,
     HandshakingResponse,
-    CommandResponse,
-    AckResponse
+    CommandResponse
   ],
   'Response'
 )

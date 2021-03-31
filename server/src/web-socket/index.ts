@@ -70,12 +70,9 @@ export function initWebSocket(server: Server) {
                   message.from,
                   foldActor(constVoid, () => robotHandler.reset())
                 ),
-              Handshaking: () => robotHandler.forwardHandshakingMessage(),
-              Command: message => robotHandler.forwardCommandMessage(message),
-              Ack: () => {
-                robotHandler.registerAck()
-                clientHandler.forwardAckMessage()
-              }
+              Handshaking: message =>
+                robotHandler.forwardHandshakingMessage(message),
+              Command: message => robotHandler.forwardCommandMessage(message)
             })
           )
         )

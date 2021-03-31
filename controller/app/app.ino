@@ -2,17 +2,17 @@
 #include "State.hpp"
 
 using namespace websockets2_generic;
+using std::abs;
 using std::max;
 using std::min;
 
 WebsocketsClient client;
 State currentState;
-String ackMessage;
-long lastMessageSentAt = 0;
-int receivedHandshakingMessagesCount = 0;
-long minRTT = 0;
-long maxRTT = 0;
 bool isMoving = false;
+long lastMessageTimestamp = -1;
+long lastMessageReceivedAt = -1;
+long averageDelay = 0;
+unsigned int handshakingMessagesReceivedCount = 0;
 
 void setup()
 {
@@ -41,18 +41,11 @@ void setup()
   currentState.setup();
   client.onMessage(onWebsocketsMessage);
   client.onEvent(onWebsocketsEvent);
-
-  JSONVar document;
-
-  document["type"] = "Ack";
-  document["from"] = "Robot";
-
-  ackMessage = JSON.stringify(document);
 }
 
 void loop()
 {
-  bool isSwitchOn = digitalRead(PIN_SWITCH);
+  const bool isSwitchOn = digitalRead(PIN_SWITCH);
 
   if (isSwitchOn)
   {
@@ -86,7 +79,7 @@ void loop()
     if (!client.available())
     {
       SerialUSB.println("Connecting to server...");
-      bool connected = client.connect(WebSocketServerUrl, ServerPort, WebSocketServerPath);
+      const bool connected = client.connect(WebSocketServerUrl, ServerPort, WebSocketServerPath);
 
       if (connected)
       {
@@ -112,8 +105,8 @@ void loop()
       document["from"] = "Robot";
       document["accessToken"] = Secret;
 
-      String message = JSON.stringify(document);
-      bool success = client.send(message);
+      const String message = JSON.stringify(document);
+      const bool success = client.send(message);
 
       if (success)
       {
@@ -141,9 +134,8 @@ void loop()
         document["type"] = "Reset";
         document["from"] = "Robot";
 
-        String message = JSON.stringify(document);
-
-        bool success = client.send(message);
+        const String message = JSON.stringify(document);
+        const bool success = client.send(message);
 
         if (success)
         {
@@ -225,35 +217,25 @@ void onWebsocketsMessage(WebsocketsMessage message)
   }
   else if (type == "Handshaking")
   {
-    receivedHandshakingMessagesCount++;
-
-    const long now = millis();
-
-    if (lastMessageSentAt != 0)
+    if (
+        !document.hasOwnProperty("time") ||
+        JSON.typeof_(document["time"]) != "number")
     {
-      const long rtt = now - lastMessageSentAt;
-
-      minRTT = min(minRTT, rtt);
-      maxRTT = max(maxRTT, rtt);
-
-      const long averageRTT = (minRTT + maxRTT) / 2.;
-
-      SerialUSB.print("Received ");
-      SerialUSB.print(receivedHandshakingMessagesCount);
-      SerialUSB.print(" messages. ");
-      SerialUSB.print("Average RTT is ");
-      SerialUSB.print(averageRTT);
-      SerialUSB.println(".");
+      return;
     }
 
-    sendAck();
-    lastMessageSentAt = now;
+    handshakingMessagesReceivedCount++;
 
-    if (receivedHandshakingMessagesCount >= 100)
+    SerialUSB.print("Handshake message #");
+    SerialUSB.println(handshakingMessagesReceivedCount);
+
+    if (handshakingMessagesReceivedCount >= 100)
     {
-      receivedHandshakingMessagesCount = 0;
-      lastMessageSentAt = 0;
       currentState.setState(State::Ready);
+    }
+    else if (handshakingMessagesReceivedCount > 1)
+    {
+      updateNetworkData(document["time"]);
     }
   }
   else if (type == "Command")
@@ -264,6 +246,8 @@ void onWebsocketsMessage(WebsocketsMessage message)
     }
 
     if (
+        !document.hasOwnProperty("time") ||
+        JSON.typeof_(document["time"]) != "number" ||
         !document.hasOwnProperty("command") ||
         JSON.typeof_(document["command"]["speed"]) != "number" ||
         JSON.typeof_(document["command"]["angle"]) != "number")
@@ -271,72 +255,69 @@ void onWebsocketsMessage(WebsocketsMessage message)
       return;
     }
 
-    double speed = document["command"]["speed"];
-    int angle = document["command"]["angle"];
+    const double speed = document["command"]["speed"];
+    const int angle = document["command"]["angle"];
 
     if (speed < 0 || speed > 1 || angle < 0 || angle > 360)
     {
       return;
     }
 
-    handleCommand(speed, angle);
+    const long messageTime = document["time"];
+    const bool wasMoving = isMoving;
 
-    const long now = millis();
+    isMoving = speed > 0;
 
-    if (lastMessageSentAt != 0)
+    if (!wasMoving && !isMoving)
     {
-      const long rtt = now - lastMessageSentAt;
-
-      if (rtt > maxRTT + 1000)
-      {
-        lastMessageSentAt = 0;
-      }
-      else
-      {
-        minRTT = min(minRTT, rtt);
-        maxRTT = max(maxRTT, rtt);
-
-        const long averageRTT = (minRTT + maxRTT) / 2.;
-
-        SerialUSB.print("Average RTT is ");
-        SerialUSB.print(averageRTT);
-        SerialUSB.println(".");
-      }
+      return;
+    }
+    else if (!wasMoving && isMoving)
+    {
+      lastMessageTimestamp = messageTime;
+      lastMessageReceivedAt = millis();
+    }
+    else if (wasMoving && !isMoving)
+    {
+      lastMessageTimestamp = 0;
+      lastMessageReceivedAt = 0;
+    }
+    else // wasMoving && isMoving
+    {
+      updateNetworkData(messageTime);
     }
 
-    sendAck();
-    lastMessageSentAt = now;
-  }
-}
-
-void sendAck()
-{
-  bool success = client.send(ackMessage);
-
-  if (success)
-  {
-    SerialUSB.println("Acknowledged.");
-  }
-  else
-  {
-    SerialUSB.println("Unable to send acknowledgement. Retrying in 3 seconds.");
-    delay(3000);
-    sendAck();
+    handleCommand(speed, angle);
   }
 }
 
 void resetNetworkData()
 {
-  lastMessageSentAt = 0;
-  receivedHandshakingMessagesCount = 0;
-  minRTT = 0;
-  maxRTT = 0;
+  lastMessageTimestamp = -1;
+  lastMessageReceivedAt = -1;
+  handshakingMessagesReceivedCount = 0;
+  averageDelay = 0;
 }
 
-void handleCommand(double speed, int angle)
+void updateNetworkData(const long messageTime)
 {
-  isMoving = speed > 0;
+  const long now = millis();
+  const long declaredDelay = messageTime - lastMessageTimestamp;
+  const long actualDelay = now - lastMessageReceivedAt;
+  const long networkDelay = actualDelay - declaredDelay;
 
+  averageDelay = (averageDelay + networkDelay) / 2.;
+
+  SerialUSB.print("Average delay is: ");
+  SerialUSB.print(averageDelay);
+  SerialUSB.println(".");
+
+  lastMessageTimestamp = messageTime;
+  lastMessageReceivedAt = now;
+}
+
+void handleCommand(const double speed, const int angle)
+{
   double leftTrackSpeed = 0.;
   double rightTrackSpeed = 0.;
 
@@ -391,4 +372,6 @@ void handleCommand(double speed, int angle)
 
   leftTrackSpeed *= speed;
   rightTrackSpeed *= speed;
+
+  // TODO:
 }

@@ -85,7 +85,8 @@ type AuthorizationMessage = t.TypeOf<typeof AuthorizationMessage>
 const HandshakingMessage = t.type(
   {
     type: t.literal('Handshaking'),
-    from: From
+    from: From,
+    time: t.number
   },
   'HandshakingMessage'
 )
@@ -104,7 +105,8 @@ const CommandMessage = t.type(
   {
     type: t.literal('Command'),
     from: From,
-    command: Command
+    command: Command,
+    time: t.number
   },
   'CommandMessage'
 )
@@ -170,18 +172,12 @@ const PeerDisconnectedResponse = t.type(
   'PeerDisconnectedResponse'
 )
 
-const AckResponse = t.type({
-  type: t.literal('Ack')
-})
-export type AckResponse = t.TypeOf<typeof AckResponse>
-
 export const Response = t.union(
   [
     AuthorizedResponse,
     RefusedResponse,
     PeerConnectedResponse,
-    PeerDisconnectedResponse,
-    AckResponse
+    PeerDisconnectedResponse
   ],
   'Response'
 )

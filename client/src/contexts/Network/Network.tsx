@@ -2,10 +2,10 @@ import { constVoid, pipe } from 'fp-ts/function'
 import {
   createContext,
   PropsWithChildren,
-  useCallback,
   useContext,
   useEffect,
-  useReducer
+  useReducer,
+  useRef
 } from 'react'
 import { foldNetworkState, networkReducer, NetworkState } from './NetworkState'
 import { useWebSocket } from '../WebSocket/WebSocket'
@@ -14,11 +14,13 @@ import { foldAccount, useAccount } from '../Account/Account'
 import { Command, foldPartialResponse } from '../../globalDomain'
 import { Reader } from 'fp-ts/Reader'
 import { option } from 'fp-ts'
-import { Option } from 'fp-ts/Option'
+import { useDebounceCommand } from '../../effects/useDebounceCommand'
+
+const MESSAGES_INTERVAL = 100
 
 interface NetworkContext {
   networkState: NetworkState
-  setCommand: Reader<Option<Command>, void>
+  setCommand: Reader<Command, void>
 }
 
 const NetworkContext = createContext<NetworkContext>({
@@ -29,16 +31,19 @@ const NetworkContext = createContext<NetworkContext>({
 })
 
 export function NetworkProvider(props: PropsWithChildren<{}>) {
-  const { webSocketState, sendMessage, clearResponse } = useWebSocket()
+  const { webSocketState, sendMessage } = useWebSocket()
   const { account } = useAccount()
   const [state, dispatch] = useReducer(networkReducer, { type: 'Connecting' })
+  const handshakingStartTime = useRef<Date>(new Date())
 
-  const setCommand = useCallback((command: Option<Command>) => {
-    dispatch({
-      type: 'RegisterCommand',
-      command
+  const setCommand = useDebounceCommand((command: Command) => {
+    sendMessage({
+      type: 'Command',
+      from: 'UI',
+      command,
+      time: Date.now()
     })
-  }, [])
+  }, MESSAGES_INTERVAL)
 
   useEffect(() => {
     pipe(
@@ -83,89 +88,58 @@ export function NetworkProvider(props: PropsWithChildren<{}>) {
                     constVoid,
                     foldPartialResponse(
                       {
-                        PeerConnected: () => dispatch({ type: 'PeerConnected' })
+                        PeerConnected: () => {
+                          handshakingStartTime.current = new Date()
+                          dispatch({ type: 'PeerConnected' })
+                        }
                       },
                       constVoid
                     )
                   )
                 ),
               Handshaking: state => {
-                if (state.isAwaitingForAck) {
-                  pipe(
-                    response,
-                    option.fold(
-                      constVoid,
-                      foldPartialResponse(
-                        {
-                          PeerDisconnected: () =>
-                            dispatch({ type: 'PeerDisconnected' }),
-                          Ack: ack => dispatch({ type: 'RegisterAck', ack })
-                        },
-                        constVoid
-                      )
+                pipe(
+                  response,
+                  option.fold(
+                    constVoid,
+                    foldPartialResponse(
+                      {
+                        PeerDisconnected: () =>
+                          dispatch({ type: 'PeerDisconnected' })
+                      },
+                      constVoid
                     )
                   )
+                )
+
+                if (state.sentMessagesCount >= 100) {
+                  dispatch({ type: 'StartOperating' })
                 } else {
-                  clearResponse()
-
-                  if (state.receivedMessagesCount < 100) {
-                    dispatch({ type: 'RegisterHandshakeSent' })
-
+                  window.setTimeout(() => {
                     sendMessage({
                       type: 'Handshaking',
-                      from: 'UI'
+                      from: 'UI',
+                      time: Date.now() - handshakingStartTime.current.getTime()
                     })
-                  } else {
-                    dispatch({ type: 'StartOperating' })
-                  }
+
+                    dispatch({ type: 'RegisterHandshakeSent' })
+                  }, MESSAGES_INTERVAL)
                 }
               },
-              Operating: state => {
-                if (state.isAwaitingForAck) {
-                  pipe(
-                    response,
-                    option.fold(
-                      constVoid,
-                      foldPartialResponse(
-                        {
-                          PeerDisconnected: () =>
-                            dispatch({ type: 'PeerDisconnected' }),
-                          Ack: ack => dispatch({ type: 'RegisterAck', ack })
-                        },
-                        constVoid
-                      )
+              Operating: () => {
+                pipe(
+                  response,
+                  option.fold(
+                    constVoid,
+                    foldPartialResponse(
+                      {
+                        PeerDisconnected: () =>
+                          dispatch({ type: 'PeerDisconnected' })
+                      },
+                      constVoid
                     )
                   )
-                } else {
-                  pipe(
-                    state.command,
-                    option.fold(
-                      () =>
-                        pipe(
-                          response,
-                          option.fold(
-                            constVoid,
-                            foldPartialResponse(
-                              {
-                                PeerDisconnected: () =>
-                                  dispatch({ type: 'PeerDisconnected' })
-                              },
-                              constVoid
-                            )
-                          )
-                        ),
-                      command => {
-                        clearResponse()
-                        dispatch({ type: 'RegisterCommandSent' })
-                        sendMessage({
-                          type: 'Command',
-                          from: 'UI',
-                          command
-                        })
-                      }
-                    )
-                  )
-                }
+                )
               },
               Error: constVoid
             })

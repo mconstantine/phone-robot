@@ -95,7 +95,9 @@ void loop()
 
     client.poll();
 
-    if (currentState.getState() < State::WaitingForAuthorization)
+    const int state = currentState.getState();
+
+    if (state != State::Error && state < State::WaitingForAuthorization)
     {
       SerialUSB.println("Sending authorization request...");
 

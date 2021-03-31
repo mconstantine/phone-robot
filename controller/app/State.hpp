@@ -107,7 +107,11 @@ int State::getState()
 
 String State::getStateName()
 {
-  if (this->currentState == Initial)
+  if (this->currentState == Error)
+  {
+    return "Error";
+  }
+  else if (this->currentState == Initial)
   {
     return "Initial";
   }
